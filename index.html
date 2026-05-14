@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi Agenda</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.39.3/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #f5f0e8;
+    --ink: #1a1410;
+    --rust: #c4572a;
+    --gold: #d4a853;
+    --sage: #7a9e7e;
+    --paper: #faf7f2;
+    --shadow: rgba(26,20,16,0.12);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--cream);
+    font-family: 'DM Sans', sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(196,87,42,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(212,168,83,0.08) 0%, transparent 50%);
+  }
+
+  /* ── AUTH ── */
+  #auth-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .auth-card {
+    background: var(--paper);
+    border: 1px solid rgba(26,20,16,0.1);
+    border-radius: 20px;
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 8px 40px var(--shadow);
+    animation: fadeUp 0.5s ease;
+  }
+  .auth-card .logo {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .auth-card .logo h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+  }
+  .auth-card .logo h1 em { color: var(--rust); font-style: italic; }
+  .auth-card .logo p { font-size: 13px; color: #999; margin-top: 4px; }
+  .auth-tabs {
+    display: flex;
+    border-bottom: 1px solid rgba(26,20,16,0.1);
+    margin-bottom: 24px;
+  }
+  .auth-tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-family: 'DM Sans', sans-serif;
+    color: #aaa;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+  }
+  .auth-tab.active { color: var(--rust); border-bottom-color: var(--rust); font-weight: 500; }
+  .auth-field { margin-bottom: 14px; }
+  .auth-field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #888; margin-bottom: 5px; }
+  .auth-field input {
+    width: 100%; padding: 11px 14px;
+    border: 1.5px solid rgba(26,20,16,0.12);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; color: var(--ink);
+    background: white; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .auth-field input:focus { border-color: var(--rust); box-shadow: 0 0 0 3px rgba(196,87,42,0.1); }
+  .btn-primary {
+    width: 100%; padding: 13px;
+    background: var(--ink); color: white;
+    border: none; border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: background 0.2s, transform 0.1s;
+    margin-top: 6px;
+  }
+  .btn-primary:hover { background: var(--rust); }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+  .auth-error {
+    background: rgba(196,87,42,0.1);
+    border: 1px solid rgba(196,87,42,0.3);
+    color: var(--rust);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 14px;
+    display: none;
+  }
+  .auth-success {
+    background: rgba(122,158,126,0.1);
+    border: 1px solid rgba(122,158,126,0.3);
+    color: var(--sage);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 14px;
+    display: none;
+  }
+
+  /* ── APP ── */
+  #app-screen { display: none; }
+  .container { max-width: 780px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  header { text-align: center; margin-bottom: 48px; animation: fadeDown 0.6s ease; }
+  header .eyebrow { font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--rust); font-weight: 500; margin-bottom: 8px; }
+  header h1 { font-family: 'Playfair Display', serif; font-size: clamp(2.2rem,5vw,3.2rem); font-weight: 700; line-height: 1.1; }
+  header h1 em { font-style: italic; color: var(--rust); }
+  .date-strip { font-size: 13px; color: #888; margin-top: 10px; font-weight: 300; }
+
+  .header-bar { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+  .user-info { font-size: 12px; color: #aaa; display: flex; align-items: center; gap: 8px; }
+  .btn-logout {
+    font-size: 12px; color: #aaa; background: none; border: 1px solid rgba(26,20,16,0.15);
+    border-radius: 6px; padding: 4px 10px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+  }
+  .btn-logout:hover { color: var(--rust); border-color: var(--rust); }
+
+  .add-card {
+    background: var(--paper); border: 1px solid rgba(26,20,16,0.1);
+    border-radius: 16px; padding: 28px; margin-bottom: 36px;
+    box-shadow: 0 4px 24px var(--shadow); animation: fadeUp 0.5s ease 0.1s both;
+  }
+  .add-card h2 { font-family: 'Playfair Display', serif; font-size: 1.1rem; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+  .add-card h2::before { content:'+'; width:24px; height:24px; background:var(--rust); color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-row.full { grid-template-columns: 1fr; }
+  label { display: block; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #888; margin-bottom: 5px; font-weight: 500; }
+  input[type=text], input[type=date], input[type=time], textarea {
+    width: 100%; padding: 10px 14px;
+    border: 1.5px solid rgba(26,20,16,0.12); border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--ink);
+    background: white; outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input:focus, textarea:focus { border-color: var(--rust); box-shadow: 0 0 0 3px rgba(196,87,42,0.1); }
+  textarea { resize: vertical; min-height: 64px; }
+
+  .category-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .cat-btn {
+    padding: 5px 14px; border-radius: 20px; border: 1.5px solid rgba(26,20,16,0.15);
+    background: white; font-size: 12px; cursor: pointer; transition: all 0.18s;
+    font-family: 'DM Sans', sans-serif; color: var(--ink);
+  }
+  .cat-btn.active, .cat-btn:hover { border-color: var(--rust); background: var(--rust); color: white; }
+
+  .btn-add {
+    width: 100%; padding: 12px; background: var(--ink); color: white;
+    border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500; cursor: pointer;
+    transition: background 0.2s, transform 0.1s; letter-spacing: 0.03em;
+  }
+  .btn-add:hover { background: var(--rust); }
+  .btn-add:active { transform: scale(0.98); }
+  .btn-add:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .section-title { font-family: 'Playfair Display', serif; font-size: 1.3rem; margin-bottom: 16px; display: flex; align-items: baseline; gap: 10px; }
+  .count-badge { font-family: 'DM Sans', sans-serif; font-size: 12px; background: var(--ink); color: white; border-radius: 20px; padding: 2px 10px; font-weight: 400; }
+
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .filter-btn { padding: 4px 12px; border-radius: 16px; border: 1px solid rgba(26,20,16,0.2); background: transparent; font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+  .filter-btn.active { background: var(--ink); color: white; border-color: var(--ink); }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: #aaa; font-size: 14px; animation: fadeUp 0.4s ease; }
+  .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+
+  .day-group { margin-bottom: 28px; animation: fadeUp 0.35s ease; }
+  .day-label { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #999; font-weight: 500; margin-bottom: 10px; padding-left: 4px; display: flex; align-items: center; gap: 8px; }
+  .day-label::after { content:''; flex:1; height:1px; background: rgba(26,20,16,0.08); }
+  .day-label.today-label { color: var(--rust); font-weight: 600; }
+
+  .event-card {
+    background: white; border: 1px solid rgba(26,20,16,0.08);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 8px;
+    display: flex; align-items: flex-start; gap: 14px;
+    transition: box-shadow 0.2s, transform 0.15s;
+    position: relative; overflow: hidden;
+  }
+  .event-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; border-radius: 12px 0 0 12px; }
+  .event-card.cat-gestion::before { background: var(--rust); }
+  .event-card.cat-medico::before { background: #5ba4cf; }
+  .event-card.cat-personal::before { background: var(--sage); }
+  .event-card.cat-trabajo::before { background: var(--gold); }
+  .event-card.cat-otro::before { background: #b0a0ff; }
+  .event-card:hover { box-shadow: 0 4px 20px var(--shadow); transform: translateY(-1px); }
+  .event-card.done { opacity: 0.5; }
+  .event-card.done .event-title { text-decoration: line-through; }
+
+  .check-btn {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid rgba(26,20,16,0.2); background: transparent;
+    cursor: pointer; flex-shrink: 0; margin-top: 1px;
+    transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: transparent;
+  }
+  .event-card.done .check-btn { background: var(--sage); border-color: var(--sage); color: white; }
+  .check-btn:hover { border-color: var(--sage); color: var(--sage); }
+
+  .event-body { flex: 1; min-width: 0; }
+  .event-title { font-size: 15px; font-weight: 500; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .event-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .event-time { font-size: 12px; color: var(--rust); font-weight: 500; }
+  .event-cat { font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.08em; }
+  .event-note { font-size: 12px; color: #888; margin-top: 4px; font-style: italic; }
+
+  .delete-btn {
+    background: none; border: none; cursor: pointer; color: #ccc;
+    font-size: 16px; padding: 2px 4px; border-radius: 4px;
+    transition: color 0.15s, background 0.15s; flex-shrink: 0;
+  }
+  .delete-btn:hover { color: #e05555; background: rgba(224,85,85,0.08); }
+
+  .loading-overlay {
+    position: fixed; inset: 0; background: var(--cream);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px; z-index: 100;
+  }
+  .loading-overlay h2 { font-family: 'Playfair Display', serif; font-size: 1.8rem; }
+  .loading-overlay h2 em { font-style: italic; color: var(--rust); }
+  .spinner {
+    width: 32px; height: 32px; border: 3px solid rgba(196,87,42,0.2);
+    border-top-color: var(--rust); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: white; padding: 10px 22px; border-radius: 24px;
+    font-size: 13px; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 99;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @keyframes fadeDown { from { opacity:0; transform:translateY(-16px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeUp   { from { opacity:0; transform:translateY(12px);  } to { opacity:1; transform:translateY(0); } }
+  @keyframes spin     { to { transform: rotate(360deg); } }
+
+  @media (max-width: 540px) { .form-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loading">
+  <h2>Mi <em>Agenda</em></h2>
+  <div class="spinner"></div>
+</div>
+
+<!-- Auth -->
+<div id="auth-screen" style="display:none">
+  <div class="auth-card">
+    <div class="logo">
+      <h1>Mi <em>Agenda</em></h1>
+      <p>Tu gestor de tareas personal</p>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Iniciar sesión</button>
+      <button class="auth-tab" onclick="switchTab('register')">Crear cuenta</button>
+    </div>
+    <div id="auth-error" class="auth-error"></div>
+    <div id="auth-success" class="auth-success"></div>
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="auth-email" placeholder="tu@email.com">
+    </div>
+    <div class="auth-field">
+      <label>Contraseña</label>
+      <input type="password" id="auth-password" placeholder="Mínimo 6 caracteres" onkeydown="if(event.key==='Enter') authSubmit()">
+    </div>
+    <button class="btn-primary" id="auth-btn" onclick="authSubmit()">Entrar</button>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app-screen">
+  <div class="container">
+    <header>
+      <div class="header-bar">
+        <div style="flex:1"></div>
+        <div class="user-info">
+          <span id="user-email-label"></span>
+          <button class="btn-logout" onclick="logout()">Cerrar sesión</button>
+        </div>
+      </div>
+      <div class="eyebrow">Recordatorio personal</div>
+      <h1>Mi <em>Agenda</em></h1>
+      <div class="date-strip" id="today-label"></div>
+    </header>
+
+    <div class="add-card">
+      <h2>Nueva gestión</h2>
+      <div class="form-row full">
+        <div>
+          <label>¿Qué tienes que hacer?</label>
+          <input type="text" id="inp-title" placeholder="Ej: Renovar DNI, cita médica…">
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label>Fecha</label>
+          <input type="date" id="inp-date">
+        </div>
+        <div>
+          <label>Hora (opcional)</label>
+          <input type="time" id="inp-time">
+        </div>
+      </div>
+      <div class="form-row full">
+        <div>
+          <label>Notas (opcional)</label>
+          <textarea id="inp-note" placeholder="Dirección, documentos a llevar, teléfono…"></textarea>
+        </div>
+      </div>
+      <label style="margin-bottom:8px">Categoría</label>
+      <div class="category-row" id="cat-row">
+        <button class="cat-btn active" data-cat="gestion">📋 Gestión</button>
+        <button class="cat-btn" data-cat="medico">🏥 Médico</button>
+        <button class="cat-btn" data-cat="trabajo">💼 Trabajo</button>
+        <button class="cat-btn" data-cat="personal">🏠 Personal</button>
+        <button class="cat-btn" data-cat="otro">✨ Otro</button>
+      </div>
+      <button class="btn-add" id="btn-add" onclick="addEvent()">Añadir a la agenda</button>
+    </div>
+
+    <div class="section-title">
+      Próximas gestiones
+      <span class="count-badge" id="count-badge">0</span>
+    </div>
+    <div class="filters">
+      <button class="filter-btn active" onclick="setFilter('all',this)">Todas</button>
+      <button class="filter-btn" onclick="setFilter('pendiente',this)">Pendientes</button>
+      <button class="filter-btn" onclick="setFilter('hecho',this)">Completadas</button>
+    </div>
+    <div id="events-list"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ──
+const SUPABASE_URL = 'https://soymmkouvzuxyuieyidb.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNveW1ta291dnp1eHl1aWV5aWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MDkwNjQsImV4cCI6MjA5NDI4NTA2NH0.Wbwi-rA0o8XTaMFhOg1rR3TO57sbW0-pYJ8k3SRRGbQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let events = [];
+let selectedCat = 'gestion';
+let currentFilter = 'all';
+let currentUser = null;
+
+const catLabels = { gestion:'📋 Gestión', medico:'🏥 Médico', trabajo:'💼 Trabajo', personal:'🏠 Personal', otro:'✨ Otro' };
+
+// ── INIT ──
+async function init() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    currentUser = session.user;
+    showApp();
+  } else {
+    showAuth();
+  }
+  sb.auth.onAuthStateChange((_event, session) => {
+    if (session?.user) { currentUser = session.user; showApp(); }
+    else { currentUser = null; showAuth(); }
+  });
+}
+
+function showAuth() {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('app-screen').style.display = 'none';
+}
+
+async function showApp() {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  document.getElementById('user-email-label').textContent = currentUser.email;
+  const todayISO = new Date().toISOString().split('T')[0];
+  document.getElementById('inp-date').value = todayISO;
+  const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
+  document.getElementById('today-label').textContent = new Date().toLocaleDateString('es-ES', opts);
+  document.querySelectorAll('.cat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedCat = btn.dataset.cat;
+    });
+  });
+  await loadEvents();
+}
+
+// ── AUTH ──
+let authMode = 'login';
+function switchTab(mode) {
+  authMode = mode;
+  document.querySelectorAll('.auth-tab').forEach((t,i) => t.classList.toggle('active', (mode==='login'&&i===0)||(mode==='register'&&i===1)));
+  document.getElementById('auth-btn').textContent = mode === 'login' ? 'Entrar' : 'Crear cuenta';
+  document.getElementById('auth-error').style.display = 'none';
+  document.getElementById('auth-success').style.display = 'none';
+}
+
+async function authSubmit() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+  const sucEl = document.getElementById('auth-success');
+  const btn = document.getElementById('auth-btn');
+  errEl.style.display = 'none';
+  sucEl.style.display = 'none';
+  if (!email || !password) { errEl.textContent = 'Rellena email y contraseña'; errEl.style.display='block'; return; }
+  btn.disabled = true; btn.textContent = 'Un momento…';
+  if (authMode === 'login') {
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) { errEl.textContent = 'Email o contraseña incorrectos'; errEl.style.display='block'; }
+  } else {
+    const { error } = await sb.auth.signUp({ email, password });
+    if (error) { errEl.textContent = error.message; errEl.style.display='block'; }
+    else { sucEl.textContent = '✓ Cuenta creada. Revisa tu email para confirmarla.'; sucEl.style.display='block'; }
+  }
+  btn.disabled = false;
+  btn.textContent = authMode === 'login' ? 'Entrar' : 'Crear cuenta';
+}
+
+async function logout() {
+  await sb.auth.signOut();
+  events = [];
+}
+
+// ── EVENTS ──
+async function loadEvents() {
+  const { data, error } = await sb.from('events').select('*').order('date').order('time');
+  if (!error) { events = data || []; render(); }
+}
+
+async function addEvent() {
+  const title = document.getElementById('inp-title').value.trim();
+  const date  = document.getElementById('inp-date').value;
+  const time  = document.getElementById('inp-time').value;
+  const note  = document.getElementById('inp-note').value.trim();
+  if (!title) { toast('Escribe qué tienes que hacer'); return; }
+  if (!date)  { toast('Elige una fecha'); return; }
+  const btn = document.getElementById('btn-add');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  const { data, error } = await sb.from('events').insert([{
+    user_id: currentUser.id, title, date, time: time||null, note: note||null, cat: selectedCat, done: false
+  }]).select().single();
+  btn.disabled = false; btn.textContent = 'Añadir a la agenda';
+  if (error) { toast('Error al guardar'); return; }
+  events.push(data);
+  render();
+  toast('✓ Gestión añadida');
+  document.getElementById('inp-title').value = '';
+  document.getElementById('inp-time').value = '';
+  document.getElementById('inp-note').value = '';
+  document.getElementById('inp-date').value = new Date().toISOString().split('T')[0];
+}
+
+async function toggleDone(id) {
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+  const newDone = !ev.done;
+  const { error } = await sb.from('events').update({ done: newDone }).eq('id', id);
+  if (!error) { ev.done = newDone; render(); }
+}
+
+async function deleteEvent(id) {
+  const { error } = await sb.from('events').delete().eq('id', id);
+  if (!error) { events = events.filter(e => e.id !== id); render(); toast('Gestión eliminada'); }
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+// ── RENDER ──
+function formatDate(dateStr) {
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const date = new Date(y,m-1,d);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+  if (date.getTime()===today.getTime()) return 'Hoy';
+  if (date.getTime()===tomorrow.getTime()) return 'Mañana';
+  const label = date.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  return label.charAt(0).toUpperCase()+label.slice(1);
+}
+
+function isToday(dateStr) {
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const date = new Date(y,m-1,d);
+  const today = new Date(); today.setHours(0,0,0,0);
+  return date.getTime()===today.getTime();
+}
+
+function escHtml(str) {
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function render() {
+  let filtered = [...events];
+  if (currentFilter==='pendiente') filtered = filtered.filter(e=>!e.done);
+  if (currentFilter==='hecho')     filtered = filtered.filter(e=>e.done);
+  filtered.sort((a,b)=>(a.date+(a.time||'00:00')).localeCompare(b.date+(b.time||'00:00')));
+  document.getElementById('count-badge').textContent = events.filter(e=>!e.done).length;
+  const container = document.getElementById('events-list');
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">📭</div><div>No hay gestiones aquí todavía.<br>¡Añade tu primera tarea!</div></div>`;
+    return;
+  }
+  const groups = {};
+  filtered.forEach(ev => { if(!groups[ev.date]) groups[ev.date]=[]; groups[ev.date].push(ev); });
+  container.innerHTML = Object.keys(groups).sort().map(date=>`
+    <div class="day-group">
+      <div class="day-label ${isToday(date)?'today-label':''}">${formatDate(date)}</div>
+      ${groups[date].map(ev=>`
+        <div class="event-card cat-${ev.cat} ${ev.done?'done':''}">
+          <button class="check-btn" onclick="toggleDone('${ev.id}')">✓</button>
+          <div class="event-body">
+            <div class="event-title">${escHtml(ev.title)}</div>
+            <div class="event-meta">
+              ${ev.time?`<span class="event-time">🕐 ${ev.time}</span>`:''}
+              <span class="event-cat">${catLabels[ev.cat]||ev.cat}</span>
+            </div>
+            ${ev.note?`<div class="event-note">${escHtml(ev.note)}</div>`:''}
+          </div>
+          <button class="delete-btn" onclick="deleteEvent('${ev.id}')">×</button>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+init();
+</script>
+</body>
+</html>
