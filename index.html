@@ -143,4 +143,456 @@
   .ai-input::placeholder { color:rgba(255,255,255,0.35); }
   .ai-input:focus { border-color:var(--rust); }
   .ai-btn { padding:12px 20px; background:var(--rust); color:white; border:none; border-radius:10px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; cursor:pointer; transition:all 0.2s; white-space:nowrap; }
-  .ai-btn:hover
+  .ai-btn:hover { background:#d4632f; }
+  .ai-btn:disabled { opacity:0.5; cursor:not-allowed; }
+  .ai-preview { margin-top:14px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:14px 16px; font-size:13px; display:none; }
+  .ai-preview-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .ai-preview-label { color:rgba(255,255,255,0.5); font-size:11px; text-transform:uppercase; letter-spacing:0.1em; }
+  .ai-preview-val { color:white; font-weight:500; }
+  .ai-preview-actions { display:flex; gap:8px; margin-top:14px; }
+  .ai-confirm { flex:1; padding:9px; background:var(--sage); color:white; border:none; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; cursor:pointer; transition:all 0.2s; }
+  .ai-confirm:hover { background:#6a8e6e; }
+  .ai-discard { padding:9px 16px; background:rgba(255,255,255,0.1); color:white; border:none; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:13px; cursor:pointer; transition:all 0.2s; }
+  .ai-discard:hover { background:rgba(255,255,255,0.18); }
+
+  .loading-overlay { position:fixed; inset:0; background:var(--cream); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px; z-index:100; }
+  .loading-overlay h2 { font-family:'Playfair Display',serif; font-size:1.8rem; }
+  .loading-overlay h2 em { font-style:italic; color:var(--rust); }
+  .spinner { width:32px; height:32px; border:3px solid rgba(196,87,42,0.2); border-top-color:var(--rust); border-radius:50%; animation:spin 0.8s linear infinite; }
+  .toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--ink); color:white; padding:10px 22px; border-radius:24px; font-size:13px; opacity:0; transition:all 0.3s; pointer-events:none; z-index:99; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @keyframes fadeDown { from{opacity:0;transform:translateY(-16px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes fadeUp   { from{opacity:0;transform:translateY(12px)}  to{opacity:1;transform:translateY(0)} }
+  @keyframes spin     { to{transform:rotate(360deg)} }
+  @media(max-width:540px){ .form-row{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <h2>NoSeMe<em>Olvida</em></h2>
+  <div class="spinner"></div>
+</div>
+
+<div id="auth-screen" style="display:none">
+  <div class="auth-card">
+    <div class="logo">
+      <h1>NoSeMe<em>Olvida</em></h1>
+      <p>Tu gestor de tareas personal</p>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Iniciar sesión</button>
+      <button class="auth-tab" onclick="switchTab('register')">Crear cuenta</button>
+    </div>
+    <div id="auth-error" class="auth-error"></div>
+    <div id="auth-success" class="auth-success"></div>
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="auth-email" placeholder="tu@email.com" autocomplete="email">
+    </div>
+    <div class="auth-field">
+      <label>Contraseña</label>
+      <input type="password" id="auth-password" placeholder="Mínimo 6 caracteres" autocomplete="current-password" onkeydown="if(event.key==='Enter') authSubmit()">
+    </div>
+    <label class="remember-row">
+      <input type="checkbox" id="remember-me" checked>
+      <span>Recordar mi sesión</span>
+    </label>
+    <button class="btn-primary" id="auth-btn" onclick="authSubmit()">Entrar</button>
+  </div>
+</div>
+
+<div id="app-screen">
+  <div class="container">
+    <header>
+      <div class="header-bar">
+        <div class="user-info">
+          <span id="user-email-label"></span>
+          <button class="btn-logout" onclick="logout()">Cerrar sesión</button>
+        </div>
+      </div>
+      <div class="eyebrow">Recordatorio personal</div>
+      <h1>NoSeMe<em>Olvida</em></h1>
+      <div class="date-strip" id="today-label"></div>
+    </header>
+
+    <div class="view-tabs">
+      <button class="view-tab active" id="tab-lista" onclick="switchView('lista',this)">📋 Lista</button>
+      <button class="view-tab" id="tab-calendario" onclick="switchView('calendario',this)">📅 Calendario</button>
+      <button class="view-tab" id="tab-nueva" onclick="switchView('nueva',this)">➕ Nueva</button>
+    </div>
+
+    <div id="view-calendario" style="display:none">
+      <div class="calendar-card">
+        <div class="cal-header">
+          <button class="cal-nav" onclick="calPrev()">‹</button>
+          <div class="cal-title" id="cal-title"></div>
+          <button class="cal-nav" onclick="calNext()">›</button>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="cal-events-day" id="cal-events-day" style="display:none">
+          <div class="cal-events-day-title" id="cal-events-day-title"></div>
+          <div id="cal-events-day-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-nueva" style="display:none">
+      <div class="add-card">
+        <h2>Nueva gestión</h2>
+        <div class="form-row full">
+          <div>
+            <label>¿Qué tienes que hacer?</label>
+            <input type="text" id="inp-title" placeholder="Ej: Renovar DNI, cita médica…">
+          </div>
+        </div>
+        <div class="form-row">
+          <div><label>Fecha</label><input type="date" id="inp-date"></div>
+          <div><label>Hora (opcional)</label><input type="time" id="inp-time"></div>
+        </div>
+        <div class="form-row full">
+          <div><label>Notas (opcional)</label><textarea id="inp-note" placeholder="Dirección, documentos a llevar, teléfono…"></textarea></div>
+        </div>
+        <label style="margin-bottom:8px">Categoría</label>
+        <div class="category-row" id="cat-row">
+          <button class="cat-btn active" data-cat="gestion">📋 Gestión</button>
+          <button class="cat-btn" data-cat="medico">🏥 Médico</button>
+          <button class="cat-btn" data-cat="trabajo">💼 Trabajo</button>
+          <button class="cat-btn" data-cat="personal">🏠 Personal</button>
+          <button class="cat-btn" data-cat="otro">✨ Otro</button>
+        </div>
+        <button class="btn-add" id="btn-add" onclick="addEvent()">Añadir a la agenda</button>
+      </div>
+    </div>
+
+    <div id="view-lista">
+      <div class="ai-card">
+        <div class="ai-card-title">✨ Añadir con IA</div>
+        <div class="ai-card-sub">Escribe en lenguaje natural: "dentista mañana a las 9" o "pagar factura el viernes"</div>
+        <div class="ai-input-row">
+          <input class="ai-input" id="ai-input" placeholder="¿Qué tienes que hacer?" onkeydown="if(event.key==='Enter') aiParse()">
+          <button class="ai-btn" id="ai-btn" onclick="aiParse()">✨ Crear</button>
+        </div>
+        <div class="ai-preview" id="ai-preview">
+          <div class="ai-preview-row"><span class="ai-preview-label">Tarea</span><span class="ai-preview-val" id="ai-prev-title"></span></div>
+          <div class="ai-preview-row"><span class="ai-preview-label">Fecha</span><span class="ai-preview-val" id="ai-prev-date"></span></div>
+          <div class="ai-preview-row"><span class="ai-preview-label">Hora</span><span class="ai-preview-val" id="ai-prev-time"></span></div>
+          <div class="ai-preview-row"><span class="ai-preview-label">Categoría</span><span class="ai-preview-val" id="ai-prev-cat"></span></div>
+          <div class="ai-preview-actions">
+            <button class="ai-confirm" onclick="aiConfirm()">✓ Añadir a la agenda</button>
+            <button class="ai-discard" onclick="aiDiscard()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+      <div class="section-title">Próximas gestiones <span class="count-badge" id="count-badge">0</span></div>
+      <div class="filters">
+        <button class="filter-btn active" onclick="setFilter('all',this)">Todas</button>
+        <button class="filter-btn" onclick="setFilter('pendiente',this)">Pendientes</button>
+        <button class="filter-btn" onclick="setFilter('hecho',this)">Completadas</button>
+      </div>
+      <div id="events-list"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://soymmkouvzuxyuieyidb.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNveW1ta291dnp1eHl1aWV5aWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MDkwNjQsImV4cCI6MjA5NDI4NTA2NH0.Wbwi-rA0o8XTaMFhOg1rR3TO57sbW0-pYJ8k3SRRGbQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let events = [], selectedCat = 'gestion', currentFilter = 'all', currentUser = null;
+let calYear, calMonth, calSelectedDate = null;
+const catLabels = { gestion:'📋 Gestión', medico:'🏥 Médico', trabajo:'💼 Trabajo', personal:'🏠 Personal', otro:'✨ Otro' };
+
+async function init() {
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session?.user){ currentUser=session.user; showApp(); } else { showAuth(); }
+  sb.auth.onAuthStateChange((_e,session)=>{
+    if(session?.user){ currentUser=session.user; showApp(); } else { currentUser=null; showAuth(); }
+  });
+}
+
+function showAuth() {
+  document.getElementById('loading').style.display='none';
+  document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('app-screen').style.display='none';
+  const saved=localStorage.getItem('nsmo_email');
+  if(saved) document.getElementById('auth-email').value=saved;
+}
+
+async function showApp() {
+  document.getElementById('loading').style.display='none';
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('app-screen').style.display='block';
+  document.getElementById('user-email-label').textContent=currentUser.email;
+  document.getElementById('inp-date').value=new Date().toISOString().split('T')[0];
+  const opts={weekday:'long',year:'numeric',month:'long',day:'numeric'};
+  document.getElementById('today-label').textContent=new Date().toLocaleDateString('es-ES',opts);
+  document.querySelectorAll('.cat-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active'); selectedCat=btn.dataset.cat;
+    });
+  });
+  const now=new Date(); calYear=now.getFullYear(); calMonth=now.getMonth();
+  await loadEvents();
+}
+
+function switchView(view, btn) {
+  document.querySelectorAll('.view-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-lista').style.display=view==='lista'?'block':'none';
+  document.getElementById('view-calendario').style.display=view==='calendario'?'block':'none';
+  document.getElementById('view-nueva').style.display=view==='nueva'?'block':'none';
+  if(view==='calendario') renderCalendar();
+}
+
+let authMode='login';
+function switchTab(mode) {
+  authMode=mode;
+  document.querySelectorAll('.auth-tab').forEach((t,i)=>t.classList.toggle('active',(mode==='login'&&i===0)||(mode==='register'&&i===1)));
+  document.getElementById('auth-btn').textContent=mode==='login'?'Entrar':'Crear cuenta';
+  document.getElementById('auth-error').style.display='none';
+  document.getElementById('auth-success').style.display='none';
+}
+
+async function authSubmit() {
+  const email=document.getElementById('auth-email').value.trim();
+  const password=document.getElementById('auth-password').value;
+  const remember=document.getElementById('remember-me').checked;
+  const errEl=document.getElementById('auth-error');
+  const sucEl=document.getElementById('auth-success');
+  const btn=document.getElementById('auth-btn');
+  errEl.style.display='none'; sucEl.style.display='none';
+  if(!email||!password){ errEl.textContent='Rellena email y contraseña'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Un momento…';
+  if(authMode==='login'){
+    const{error}=await sb.auth.signInWithPassword({email,password});
+    if(error){ errEl.textContent='Email o contraseña incorrectos'; errEl.style.display='block'; }
+    else { if(remember) localStorage.setItem('nsmo_email',email); else localStorage.removeItem('nsmo_email'); }
+  } else {
+    const{error}=await sb.auth.signUp({email,password});
+    if(error){ errEl.textContent=error.message; errEl.style.display='block'; }
+    else { sucEl.textContent='✓ Cuenta creada. Ya puedes iniciar sesión.'; sucEl.style.display='block'; switchTab('login'); }
+  }
+  btn.disabled=false; btn.textContent=authMode==='login'?'Entrar':'Crear cuenta';
+}
+
+async function logout(){ await sb.auth.signOut(); events=[]; }
+
+async function loadEvents() {
+  const{data,error}=await sb.from('events').select('*').order('date').order('time');
+  if(!error){ events=data||[]; render(); }
+}
+
+async function addEvent() {
+  const title=document.getElementById('inp-title').value.trim();
+  const date=document.getElementById('inp-date').value;
+  const time=document.getElementById('inp-time').value;
+  const note=document.getElementById('inp-note').value.trim();
+  if(!title){ toast('Escribe qué tienes que hacer'); return; }
+  if(!date){ toast('Elige una fecha'); return; }
+  const btn=document.getElementById('btn-add');
+  btn.disabled=true; btn.textContent='Guardando…';
+  const{data,error}=await sb.from('events').insert([{user_id:currentUser.id,title,date,time:time||null,note:note||null,cat:selectedCat,done:false}]).select().single();
+  btn.disabled=false; btn.textContent='Añadir a la agenda';
+  if(error){ toast('Error al guardar'); return; }
+  events.push(data); render(); renderCalendar(); toast('✓ Gestión añadida');
+  document.getElementById('inp-title').value='';
+  document.getElementById('inp-time').value='';
+  document.getElementById('inp-note').value='';
+  document.getElementById('inp-date').value=new Date().toISOString().split('T')[0];
+  switchView('lista',document.getElementById('tab-lista'));
+}
+
+async function toggleDone(id) {
+  const ev=events.find(e=>e.id===id); if(!ev) return;
+  const newDone=!ev.done;
+  const{error}=await sb.from('events').update({done:newDone}).eq('id',id);
+  if(!error){ ev.done=newDone; render(); if(calSelectedDate) calSelectDay(calSelectedDate); }
+}
+
+async function deleteEvent(id) {
+  const{error}=await sb.from('events').delete().eq('id',id);
+  if(!error){ events=events.filter(e=>e.id!==id); render(); renderCalendar(); toast('Gestión eliminada'); }
+}
+
+function setFilter(f,btn) {
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); render();
+}
+
+function calPrev(){ calMonth--; if(calMonth<0){calMonth=11;calYear--;} calSelectedDate=null; renderCalendar(); }
+function calNext(){ calMonth++; if(calMonth>11){calMonth=0;calYear++;} calSelectedDate=null; renderCalendar(); }
+
+function renderCalendar() {
+  const months=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  document.getElementById('cal-title').textContent=`${months[calMonth]} ${calYear}`;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const firstDay=new Date(calYear,calMonth,1);
+  const lastDay=new Date(calYear,calMonth+1,0);
+  let startDow=firstDay.getDay(); if(startDow===0) startDow=7; startDow--;
+  const datesWithEvents=new Set(events.filter(e=>!e.done).map(e=>e.date));
+  const days=['L','M','X','J','V','S','D'];
+  let html=days.map(d=>`<div class="cal-day-name">${d}</div>`).join('');
+  const prevLast=new Date(calYear,calMonth,0).getDate();
+  for(let i=startDow-1;i>=0;i--) html+=`<div class="cal-day other-month"><span>${prevLast-i}</span></div>`;
+  for(let d=1;d<=lastDay.getDate();d++){
+    const dateStr=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isTod=new Date(calYear,calMonth,d).getTime()===today.getTime();
+    const isSel=dateStr===calSelectedDate;
+    const hasDot=datesWithEvents.has(dateStr);
+    html+=`<div class="cal-day ${isTod?'today':''} ${isSel?'selected':''}" onclick="calSelectDay('${dateStr}')"><span>${d}</span>${hasDot?'<div class="cal-dot"></div>':''}</div>`;
+  }
+  const totalCells=Math.ceil((startDow+lastDay.getDate())/7)*7;
+  const remaining=totalCells-startDow-lastDay.getDate();
+  for(let d=1;d<=remaining;d++) html+=`<div class="cal-day Nav other-month"><span>${d}</span></div>`;
+  document.getElementById('cal-grid').innerHTML=html;
+  if(calSelectedDate) { const el=document.getElementById('cal-events-day'); if(el.style.display!=='none') calShowDayEvents(calSelectedDate); }
+}
+
+function calSelectDay(dateStr) {
+  calSelectedDate=dateStr;
+  renderCalendar();
+  calShowDayEvents(dateStr);
+}
+
+function calShowDayEvents(dateStr) {
+  const dayEvents=events.filter(e=>e.date===dateStr);
+  const container=document.getElementById('cal-events-day');
+  if(!dayEvents.length){ container.style.display='none'; return; }
+  const[y,m,d]=dateStr.split('-').map(Number);
+  const label=new Date(y,m-1,d).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('cal-events-day-title').textContent=label.charAt(0).toUpperCase()+label.slice(1);
+  document.getElementById('cal-events-day-list').innerHTML=dayEvents.map(ev=>`
+    <div class="event-card cat-${ev.cat} ${ev.done?'done':''}">
+      <button class="check-btn" onclick="toggleDone('${ev.id}')">✓</button>
+      <div class="event-body">
+        <div class="event-title">${escHtml(ev.title)}</div>
+        <div class="event-meta">${ev.time?`<span class="event-time">🕐 ${ev.time}</span>`:''}<span class="event-cat">${catLabels[ev.cat]||ev.cat}</span></div>
+        ${ev.note?`<div class="event-note">${escHtml(ev.note)}</div>`:''}
+      </div>
+      <button class="delete-btn" onclick="deleteEvent('${ev.id}')">×</button>
+    </div>`).join('');
+  container.style.display='block';
+}
+
+function formatDate(dateStr) {
+  const[y,m,d]=dateStr.split('-').map(Number);
+  const date=new Date(y,m-1,d);
+  const today=new Date(); today.setHours(0,0,0,0);
+  const tomorrow=new Date(today); tomorrow.setDate(today.getDate()+1);
+  if(date.getTime()===today.getTime()) return 'Hoy';
+  if(date.getTime()===tomorrow.getTime()) return 'Mañana';
+  const label=date.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  return label.charAt(0).toUpperCase()+label.slice(1);
+}
+
+function isToday(dateStr) {
+  const[y,m,d]=dateStr.split('-').map(Number);
+  const date=new Date(y,m-1,d);
+  const today=new Date(); today.setHours(0,0,0,0);
+  return date.getTime()===today.getTime();
+}
+
+function escHtml(str){ return(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function render() {
+  let filtered=[...events];
+  if(currentFilter==='pendiente') filtered=filtered.filter(e=>!e.done);
+  if(currentFilter==='hecho') filtered=filtered.filter(e=>e.done);
+  filtered.sort((a,b)=>(a.date+(a.time||'00:00')).localeCompare(b.date+(b.time||'00:00')));
+  document.getElementById('count-badge').textContent=events.filter(e=>!e.done).length;
+  const container=document.getElementById('events-list');
+  if(!filtered.length){ container.innerHTML=`<div class="empty-state"><div class="icon">📭</div><div>No hay gestiones todavía.<br>¡Añade tu primera tarea!</div></div>`; return; }
+  const groups={};
+  filtered.forEach(ev=>{ if(!groups[ev.date]) groups[ev.date]=[]; groups[ev.date].push(ev); });
+  container.innerHTML=Object.keys(groups).sort().map(date=>`
+    <div class="day-group">
+      <div class="day-label ${isToday(date)?'today-label':''}">${formatDate(date)}</div>
+      ${groups[date].map(ev=>`
+        <div class="event-card cat-${ev.cat} ${ev.done?'done':''}">
+          <button class="check-btn" onclick="toggleDone('${ev.id}')">✓</button>
+          <div class="event-body">
+            <div class="event-title">${escHtml(ev.title)}</div>
+            <div class="event-meta">${ev.time?`<span class="event-time">🕐 ${ev.time}</span>`:''}<span class="event-cat">${catLabels[ev.cat]||ev.cat}</span></div>
+            ${ev.note?`<div class="event-note">${escHtml(ev.note)}</div>`:''}
+          </div>
+          <button class="delete-btn" onclick="deleteEvent('${ev.id}')">×</button>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+
+// ── AI ──
+let aiParsed = null;
+
+async function aiParse() {
+  const input = document.getElementById('ai-input').value.trim();
+  if (!input) { toast('Escribe algo primero'); return; }
+  const btn = document.getElementById('ai-btn');
+  btn.disabled = true; btn.textContent = '…';
+  const today = new Date().toISOString().split('T')[0];
+  const prompt = `Hoy es ${today}. El usuario ha escrito: "${input}"
+Extrae la información y responde SOLO con JSON, sin texto adicional, sin backticks:
+{"title":"título de la tarea","date":"YYYY-MM-DD","time":"HH:MM o null si no se menciona","cat":"gestion|medico|trabajo|personal|otro","note":"nota adicional o null"}
+Categorías: gestion=trámites/gestiones, medico=salud/dentista/médico, trabajo=laboral, personal=hogar/familia, otro=resto.
+Si dice "mañana" suma 1 día a hoy. Si dice "el lunes" calcula el próximo lunes. Si no hay hora pon null.`;
+
+  try {
+    const res = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: prompt })
+    });
+    const data = await res.json();
+    const text = data.candidates[0].content.parts[0].text.trim().replace(/```json|```/g,'').trim();
+    aiParsed = JSON.parse(text);
+
+    const [y,m,d] = aiParsed.date.split('-').map(Number);
+    const dateLabel = new Date(y,m-1,d).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+
+    document.getElementById('ai-prev-title').textContent = aiParsed.title;
+    document.getElementById('ai-prev-date').textContent = dateLabel;
+    document.getElementById('ai-prev-time').textContent = aiParsed.time || 'Sin hora';
+    document.getElementById('ai-prev-cat').textContent = catLabels[aiParsed.cat] || aiParsed.cat;
+    document.getElementById('ai-preview').style.display = 'block';
+  } catch(e) {
+    toast('No he entendido bien, prueba a ser más específico');
+  }
+  btn.disabled = false; btn.textContent = '✨ Crear';
+}
+
+async function aiConfirm() {
+  if (!aiParsed) return;
+  const { data, error } = await sb.from('events').insert([{
+    user_id: currentUser.id,
+    title: aiParsed.title,
+    date: aiParsed.date,
+    time: aiParsed.time || null,
+    note: aiParsed.note || null,
+    cat: aiParsed.cat,
+    done: false
+  }]).select().single();
+  if (error) { toast('Error al guardar'); return; }
+  events.push(data); render(); renderCalendar();
+  toast('✓ Tarea añadida por IA');
+  aiDiscard();
+}
+
+function aiDiscard() {
+  aiParsed = null;
+  document.getElementById('ai-input').value = '';
+  document.getElementById('ai-preview').style.display = 'none';
+}
+
+init();
+if('serviceWorker' in navigator){ navigator.serviceWorker.getRegistrations().then(r=>r.forEach(sw=>sw.unregister())); }
+</script>
+</body>
+</html>
