@@ -530,7 +530,6 @@ function render() {
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
 
 // ── AI ──
-const GEMINI_KEY = 'const apiKey = process.env.GEMINI_API_KEY;';
 let aiParsed = null;
 
 async function aiParse() {
@@ -546,12 +545,13 @@ Categorías: gestion=trámites/gestiones, medico=salud/dentista/médico, trabajo
 Si dice "mañana" suma 1 día a hoy. Si dice "el lunes" calcula el próximo lunes. Si no hay hora pon null.`;
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+    const res = await fetch('/api/gemini', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      body: JSON.stringify({ prompt })
     });
     const data = await res.json();
+
     const text = data.candidates[0].content.parts[0].text.trim().replace(/```json|```/g,'').trim();
     aiParsed = JSON.parse(text);
 
