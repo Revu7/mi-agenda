@@ -9,15 +9,25 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENROUTER_KEY}`
+        'Authorization': `Bearer ${process.env.OPENROUTER_KEY}`,
+        'HTTP-Referer': 'https://nosemeolvida.es',
+        'X-Title': 'NoSeMeOlvida'
       },
       body: JSON.stringify({
         model: 'mistralai/mistral-7b-instruct:free',
         messages: [{ role: 'user', content: prompt }]
       })
     });
+
     const data = await response.json();
-    const text = data.choices[0].message.content;
+    
+    if (!response.ok) {
+      return res.status(500).json({ error: JSON.stringify(data) });
+    }
+
+    const text = data.choices?.[0]?.message?.content;
+    if (!text) return res.status(500).json({ error: 'No response from AI' });
+
     res.status(200).json({ candidates: [{ content: { parts: [{ text }] } }] });
   } catch (e) {
     res.status(500).json({ error: e.message });
