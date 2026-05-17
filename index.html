@@ -169,6 +169,30 @@
   .delete-btn { background:none; border:none; cursor:pointer; color:#ccc; font-size:16px; padding:2px 4px; border-radius:4px; transition:color 0.15s,background 0.15s; flex-shrink:0; }
   .delete-btn:hover { color:#e05555; background:rgba(224,85,85,0.08); }
 
+  /* ── OVERDUE MODAL ── */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:center; justify-content:center; padding:24px; animation:fadeUp 0.3s ease; }
+  .modal-card { background:var(--paper); border-radius:20px; padding:32px 28px; width:100%; max-width:440px; box-shadow:0 16px 60px rgba(0,0,0,0.3); }
+  .modal-progress { font-size:11px; color:#aaa; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:16px; }
+  .modal-title { font-family:'Playfair Display',serif; font-size:1.4rem; margin-bottom:6px; }
+  .modal-subtitle { font-size:13px; color:#aaa; margin-bottom:24px; }
+  .modal-task { background:var(--cream); border-radius:12px; padding:16px; margin-bottom:20px; border-left:4px solid var(--rust); }
+  .modal-task-title { font-size:16px; font-weight:600; margin-bottom:4px; }
+  .modal-task-date { font-size:12px; color:var(--rust); font-weight:500; }
+  .modal-actions { display:flex; flex-direction:column; gap:10px; }
+  .modal-btn { padding:12px 16px; border-radius:10px; border:none; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:500; cursor:pointer; transition:all 0.2s; text-align:left; display:flex; align-items:center; gap:10px; }
+  .modal-btn-done { background:var(--sage); color:white; }
+  .modal-btn-done:hover { background:#6a8e6e; }
+  .modal-btn-postpone { background:rgba(212,168,83,0.15); color:var(--ink); border:1px solid rgba(212,168,83,0.3); }
+  .modal-btn-postpone:hover { background:rgba(212,168,83,0.25); }
+  .modal-btn-discard { background:rgba(224,85,85,0.1); color:#e05555; border:1px solid rgba(224,85,85,0.2); }
+  .modal-btn-discard:hover { background:rgba(224,85,85,0.2); }
+  .postpone-options { display:none; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .postpone-opt { padding:6px 14px; border-radius:20px; border:1.5px solid rgba(26,20,16,0.15); background:white; font-size:12px; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; }
+  .postpone-opt:hover { border-color:var(--gold); background:rgba(212,168,83,0.1); }
+  body.dark .modal-card { background:#1a1814; }
+  body.dark .modal-task { background:#0f0e0c; }
+  body.dark .postpone-opt { background:#2a2520; border-color:rgba(255,255,255,0.1); color:var(--ink); }
+
   /* ── AI CARD ── */
   .ai-card { background:linear-gradient(135deg,#1a1410 0%,#2d1f14 100%); border-radius:16px; padding:24px; margin-bottom:28px; box-shadow:0 4px 24px rgba(196,87,42,0.2); color:white; }
   .ai-card-title { font-family:'Playfair Display',serif; font-size:1.1rem; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
@@ -339,6 +363,30 @@
   </div>
 </div>
 
+<div id="overdue-modal" style="display:none" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-progress" id="modal-progress"></div>
+    <div class="modal-title">⏰ Tarea sin completar</div>
+    <div class="modal-subtitle">Esta tarea ya pasó su fecha. ¿Qué hacemos con ella?</div>
+    <div class="modal-task">
+      <div class="modal-task-title" id="modal-task-title"></div>
+      <div class="modal-task-date" id="modal-task-date"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-done" onclick="overdueAction('done')">✅ Ya la hice — marcar como completada</button>
+      <button class="modal-btn modal-btn-postpone" onclick="togglePostpone()">📅 Posponer — darle otra oportunidad</button>
+      <div class="postpone-options" id="postpone-options">
+        <button class="postpone-opt" onclick="overdueAction('postpone',1)">Mañana</button>
+        <button class="postpone-opt" onclick="overdueAction('postpone',3)">En 3 días</button>
+        <button class="postpone-opt" onclick="overdueAction('postpone',7)">En 1 semana</button>
+        <button class="postpone-opt" onclick="overdueAction('postpone',14)">En 2 semanas</button>
+        <button class="postpone-opt" onclick="overdueAction('postpone',30)">En 1 mes</button>
+      </div>
+      <button class="modal-btn modal-btn-discard" onclick="overdueAction('discard')">🗑️ Descartar — ya no es relevante</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -428,7 +476,7 @@ async function logout(){ await sb.auth.signOut(); events=[]; }
 
 async function loadEvents() {
   const{data,error}=await sb.from('events').select('*').order('date').order('time');
-  if(!error){ events=data||[]; render(); }
+  if(!error){ events=data||[]; render(); checkOverdue(); }
 }
 
 async function addEvent() {
@@ -575,6 +623,65 @@ function render() {
 }
 
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+
+// ── OVERDUE MODAL ──
+let overdueQueue = [];
+let overdueIndex = 0;
+
+function checkOverdue() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  overdueQueue = events.filter(ev => {
+    if (ev.done) return false;
+    const [y,m,d] = ev.date.split('-').map(Number);
+    const evDate = new Date(y,m-1,d);
+    return evDate < today;
+  });
+  overdueIndex = 0;
+  if (overdueQueue.length > 0) showOverdueModal();
+}
+
+function showOverdueModal() {
+  if (overdueIndex >= overdueQueue.length) {
+    document.getElementById('overdue-modal').style.display = 'none';
+    return;
+  }
+  const ev = overdueQueue[overdueIndex];
+  const [y,m,d] = ev.date.split('-').map(Number);
+  const dateLabel = new Date(y,m-1,d).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('modal-progress').textContent = `${overdueIndex+1} de ${overdueQueue.length} tareas pendientes`;
+  document.getElementById('modal-task-title').textContent = ev.title;
+  document.getElementById('modal-task-date').textContent = `Fecha original: ${dateLabel}`;
+  document.getElementById('postpone-options').style.display = 'none';
+  document.getElementById('overdue-modal').style.display = 'flex';
+}
+
+function togglePostpone() {
+  const opts = document.getElementById('postpone-options');
+  opts.style.display = opts.style.display === 'flex' ? 'none' : 'flex';
+}
+
+async function overdueAction(action, days) {
+  const ev = overdueQueue[overdueIndex];
+  if (action === 'done') {
+    await sb.from('events').update({ done: true }).eq('id', ev.id);
+    ev.done = true;
+    toast('✅ Marcada como completada');
+  } else if (action === 'postpone') {
+    const newDate = new Date(); newDate.setDate(newDate.getDate() + days);
+    const newDateStr = newDate.toISOString().split('T')[0];
+    await sb.from('events').update({ date: newDateStr }).eq('id', ev.id);
+    ev.date = newDateStr;
+    toast(`📅 Pospuesta ${days === 1 ? 'a mañana' : `${days} días`}`);
+  } else if (action === 'discard') {
+    await sb.from('events').delete().eq('id', ev.id);
+    events = events.filter(e => e.id !== ev.id);
+    toast('🗑️ Tarea descartada');
+  }
+  overdueIndex++;
+  render();
+  renderCalendar();
+  showOverdueModal();
+}
 
 // ── GOOGLE CALENDAR ──
 function addToGCal(id) {
