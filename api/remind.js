@@ -6,18 +6,18 @@ export default async function handler(req, res) {
     if (!to || !taskTitle) return res.status(400).json({ error: 'Faltan datos' });
 
     const timeText = taskTime ? ` a las ${taskTime}` : '';
-    
-    const response = await fetch('https://api.resend.com/emails', {
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.RESEND_KEY}`
+        'api-key': process.env.BREVO_KEY
       },
       body: JSON.stringify({
-        from: 'NoSeMeOlvida <recordatorio@nosemeolvida.es>',
-        to: [to],
+        sender: { name: 'NoSeMeOlvida', email: 'no-reply@nosemeolvida.es' },
+        to: [{ email: to }],
         subject: `⏰ Recordatorio: ${taskTitle}`,
-        html: `
+        htmlContent: `
           <div style="font-family: Georgia, serif; max-width: 500px; margin: 0 auto; padding: 40px 20px; background: #f5f0e8;">
             <h1 style="font-size: 28px; color: #1a1410; margin-bottom: 8px;">NoSeMe<em style="color: #c4572a;">Olvida</em></h1>
             <p style="color: #888; font-size: 13px; margin-bottom: 32px;">Recordatorio personal</p>
