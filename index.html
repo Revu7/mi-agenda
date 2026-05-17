@@ -135,7 +135,7 @@
   .delete-btn:hover { color:#e05555; background:rgba(224,85,85,0.08); }
 
   /* ── AI CARD ── */
-  .ai-card { background:linear-gradient(135deg,#1a1410 0%,#2d1f14 100%); border-radius:16px; padding:24px; margin-bottom:28px; box-shadow:0 4px 24 rgba(196,87,42,0.2); color:white; }
+  .ai-card { background:linear-gradient(135deg,#1a1410 0%,#2d1f14 100%); border-radius:16px; padding:24px; margin-bottom:28px; box-shadow:0 4px 24px rgba(196,87,42,0.2); color:white; }
   .ai-card-title { font-family:'Playfair Display',serif; font-size:1.1rem; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
   .ai-card-sub { font-size:12px; color:rgba(255,255,255,0.5); margin-bottom:16px; }
   .ai-input-row { display:flex; gap:10px; }
@@ -154,6 +154,10 @@
   .ai-confirm:hover { background:#6a8e6e; }
   .ai-discard { padding:9px 16px; background:rgba(255,255,255,0.1); color:white; border:none; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:13px; cursor:pointer; transition:all 0.2s; }
   .ai-discard:hover { background:rgba(255,255,255,0.18); }
+
+  .remind-btn { background:none; border:none; cursor:pointer; color:#ccc; font-size:14px; padding:2px 4px; border-radius:4px; transition:color 0.15s,background 0.15s; flex-shrink:0; }
+  .remind-btn:hover { color:var(--gold); background:rgba(212,168,83,0.1); }
+  .remind-btn.active { color:var(--gold); }
 
   .loading-overlay { position:fixed; inset:0; background:var(--cream); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px; z-index:100; }
   .loading-overlay h2 { font-family:'Playfair Display',serif; font-size:1.8rem; }
@@ -450,7 +454,7 @@ function renderCalendar() {
   }
   const totalCells=Math.ceil((startDow+lastDay.getDate())/7)*7;
   const remaining=totalCells-startDow-lastDay.getDate();
-  for(let d=1;d<=remaining;d++) html+=`<div class="cal-day Nav other-month"><span>${d}</span></div>`;
+  for(let d=1;d<=remaining;d++) html+=`<div class="cal-day other-month"><span>${d}</span></div>`;
   document.getElementById('cal-grid').innerHTML=html;
   if(calSelectedDate) { const el=document.getElementById('cal-events-day'); if(el.style.display!=='none') calShowDayEvents(calSelectedDate); }
 }
@@ -476,6 +480,7 @@ function calShowDayEvents(dateStr) {
         <div class="event-meta">${ev.time?`<span class="event-time">🕐 ${ev.time}</span>`:''}<span class="event-cat">${catLabels[ev.cat]||ev.cat}</span></div>
         ${ev.note?`<div class="event-note">${escHtml(ev.note)}</div>`:''}
       </div>
+      <button class="remind-btn" onclick="sendReminder('${ev.id}')" title="Enviarme recordatorio por email">🔔</button>
       <button class="delete-btn" onclick="deleteEvent('${ev.id}')">×</button>
     </div>`).join('');
   container.style.display='block';
@@ -522,6 +527,7 @@ function render() {
             <div class="event-meta">${ev.time?`<span class="event-time">🕐 ${ev.time}</span>`:''}<span class="event-cat">${catLabels[ev.cat]||ev.cat}</span></div>
             ${ev.note?`<div class="event-note">${escHtml(ev.note)}</div>`:''}
           </div>
+          <button class="remind-btn" onclick="sendReminder('${ev.id}')" title="Enviarme recordatorio por email">🔔</button>
           <button class="delete-btn" onclick="deleteEvent('${ev.id}')">×</button>
         </div>`).join('')}
     </div>`).join('');
@@ -529,7 +535,22 @@ function render() {
 
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
 
-// ── AI ──
+// ── REMINDER ──
+async function sendReminder(id) {
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+  const email = currentUser.email;
+  const [y,m,d] = ev.date.split('-').map(Number);
+  const dateLabel = new Date(y,m-1,d).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  toast('Enviando recordatorio…');
+  const res = await fetch('/api/remind', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: email, taskTitle: ev.title, taskDate: dateLabel, taskTime: ev.time })
+  });
+  if (res.ok) toast('✓ Recordatorio enviado a ' + email);
+  else toast('Error al enviar el recordatorio');
+}
 let aiParsed = null;
 
 async function aiParse() {
@@ -548,7 +569,7 @@ Si dice "mañana" suma 1 día a hoy. Si dice "el lunes" calcula el próximo lune
     const res = await fetch('/api/gemini', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt })
+      body: JSON.stringify({ prompt })
     });
     const data = await res.json();
     const text = data.candidates[0].content.parts[0].text.trim().replace(/```json|```/g,'').trim();
