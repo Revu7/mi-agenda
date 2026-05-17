@@ -3,6 +3,9 @@ export default async function handler(req, res) {
 
   try {
     const prompt = req.body?.prompt;
+    console.log('Prompt recibido:', prompt);
+    console.log('API Key existe:', !!process.env.OPENROUTER_KEY);
+    
     if (!prompt) return res.status(400).json({ error: 'No prompt' });
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -20,16 +23,14 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    
-    if (!response.ok) {
-      return res.status(500).json({ error: JSON.stringify(data) });
-    }
+    console.log('Respuesta OpenRouter:', JSON.stringify(data));
 
     const text = data.choices?.[0]?.message?.content;
-    if (!text) return res.status(500).json({ error: 'No response from AI' });
+    if (!text) return res.status(500).json({ error: 'Sin respuesta', data });
 
     res.status(200).json({ candidates: [{ content: { parts: [{ text }] } }] });
   } catch (e) {
+    console.log('Error:', e.message);
     res.status(500).json({ error: e.message });
   }
 }
