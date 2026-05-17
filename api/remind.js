@@ -14,7 +14,7 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${process.env.RESEND_KEY}`
       },
       body: JSON.stringify({
-        from: 'NoSeMeOlvida <onboarding@resend.dev>',
+        from: 'NoSeMeOlvida <recordatorio@nosemeolvida.es>',
         to: [to],
         subject: `⏰ Recordatorio: ${taskTitle}`,
         html: `
