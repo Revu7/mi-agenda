@@ -14,7 +14,7 @@ export default async function handler(req, res) {
         'api-key': process.env.BREVO_KEY
       },
       body: JSON.stringify({
-        sender: { name: 'NoSeMeOlvida', email: 'no-reply@nosemeolvida.es' },
+        sender: { name: 'NoSeMeOlvida', email: 'recordatorio@nosemeolvida.es' },
         to: [{ email: to }],
         subject: `⏰ Recordatorio: ${taskTitle}`,
         htmlContent: `
