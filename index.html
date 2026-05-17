@@ -190,6 +190,9 @@
   .ai-discard { padding:9px 16px; background:rgba(255,255,255,0.1); color:white; border:none; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:13px; cursor:pointer; transition:all 0.2s; }
   .ai-discard:hover { background:rgba(255,255,255,0.18); }
 
+  .gcal-btn { background:none; border:none; cursor:pointer; color:#ccc; font-size:14px; padding:2px 4px; border-radius:4px; transition:color 0.15s,background 0.15s; flex-shrink:0; }
+  .gcal-btn:hover { color:#4285f4; background:rgba(66,133,244,0.1); }
+
   .remind-btn { background:none; border:none; cursor:pointer; color:#ccc; font-size:14px; padding:2px 4px; border-radius:4px; transition:color 0.15s,background 0.15s; flex-shrink:0; }
   .remind-btn:hover { color:var(--gold); background:rgba(212,168,83,0.1); }
   .remind-btn.active { color:var(--gold); }
@@ -516,6 +519,7 @@ function calShowDayEvents(dateStr) {
         <div class="event-meta">${ev.time?`<span class="event-time">🕐 ${ev.time}</span>`:''}<span class="event-cat">${catLabels[ev.cat]||ev.cat}</span></div>
         ${ev.note?`<div class="event-note">${escHtml(ev.note)}</div>`:''}
       </div>
+      <button class="gcal-btn" onclick="addToGCal('${ev.id}')" title="Añadir a Google Calendar">📅</button>
       <button class="remind-btn" onclick="sendReminder('${ev.id}')" title="Enviarme recordatorio por email">🔔</button>
       <button class="delete-btn" onclick="deleteEvent('${ev.id}')">×</button>
     </div>`).join('');
@@ -563,6 +567,7 @@ function render() {
             <div class="event-meta">${ev.time?`<span class="event-time">🕐 ${ev.time}</span>`:''}<span class="event-cat">${catLabels[ev.cat]||ev.cat}</span></div>
             ${ev.note?`<div class="event-note">${escHtml(ev.note)}</div>`:''}
           </div>
+          <button class="gcal-btn" onclick="addToGCal('${ev.id}')" title="Añadir a Google Calendar">📅</button>
           <button class="remind-btn" onclick="sendReminder('${ev.id}')" title="Enviarme recordatorio por email">🔔</button>
           <button class="delete-btn" onclick="deleteEvent('${ev.id}')">×</button>
         </div>`).join('')}
@@ -570,6 +575,32 @@ function render() {
 }
 
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+
+// ── GOOGLE CALENDAR ──
+function addToGCal(id) {
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+  const [y,m,d] = ev.date.split('-').map(Number);
+  const pad = n => String(n).padStart(2,'0');
+  let dates;
+  if (ev.time) {
+    const [h,min] = ev.time.split(':').map(Number);
+    const start = `${y}${pad(m)}${pad(d)}T${pad(h)}${pad(min)}00`;
+    const endH = h + 1;
+    const end = `${y}${pad(m)}${pad(d)}T${pad(endH)}${pad(min)}00`;
+    dates = `${start}/${end}`;
+  } else {
+    const dateStr = `${y}${pad(m)}${pad(d)}`;
+    dates = `${dateStr}/${dateStr}`;
+  }
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: ev.title,
+    dates,
+    details: ev.note || '',
+  });
+  window.open(`https://calendar.google.com/calendar/render?${params}`, '_blank');
+}
 
 // ── REMINDER ──
 async function sendReminder(id) {
