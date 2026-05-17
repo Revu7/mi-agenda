@@ -21,9 +21,44 @@
     --sage: #7a9e7e;
     --paper: #faf7f2;
     --shadow: rgba(26,20,16,0.12);
+    --text-muted: #888;
+    --border: rgba(26,20,16,0.12);
+    --card-bg: white;
   }
+  body.dark {
+    --cream: #0f0e0c;
+    --ink: #f0ebe0;
+    --paper: #1a1814;
+    --shadow: rgba(0,0,0,0.4);
+    --text-muted: #666;
+    --border: rgba(255,255,255,0.08);
+    --card-bg: #221f1a;
+  }
+  body.dark .auth-field input,
+  body.dark input[type=text],
+  body.dark input[type=date],
+  body.dark input[type=time],
+  body.dark textarea { background:#2a2520; color:var(--ink); border-color:rgba(255,255,255,0.1); }
+  body.dark .cat-btn { background:#2a2520; border-color:rgba(255,255,255,0.1); color:var(--ink); }
+  body.dark .event-card { background:#221f1a; border-color:rgba(255,255,255,0.06); }
+  body.dark .view-tabs { background:#1a1814; border-color:rgba(255,255,255,0.06); }
+  body.dark .cal-day { background:rgba(255,255,255,0.03); }
+  body.dark .cal-day.other-month { background:transparent; }
+  body.dark .auth-card { background:#1a1814; border-color:rgba(255,255,255,0.08); }
+  body.dark .auth-field input { background:#2a2520; }
+  body.dark .auth-tabs { border-color:rgba(255,255,255,0.08); }
+  body.dark .btn-logout { border-color:rgba(255,255,255,0.15); color:#666; }
+  body.dark .add-card { background:#1a1814; }
+  body.dark .calendar-card { background:#1a1814; }
+  body.dark .ai-card { background:linear-gradient(135deg,#0a0908 0%,#1a1410 100%); }
+
+  .dark-toggle { background:none; border:1px solid rgba(26,20,16,0.15); border-radius:6px; padding:4px 10px; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:13px; transition:all 0.15s; color:#aaa; }
+  .dark-toggle:hover { border-color:var(--rust); color:var(--rust); }
+  body.dark .dark-toggle { border-color:rgba(255,255,255,0.15); color:#666; }
+  body.dark .dark-toggle:hover { border-color:var(--rust); color:var(--rust); }
+
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--cream); font-family:'DM Sans',sans-serif; color:var(--ink); min-height:100vh; background-image: radial-gradient(ellipse at 20% 50%, rgba(196,87,42,0.06) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(212,168,83,0.08) 0%, transparent 50%); }
+  body { background:var(--cream); font-family:'DM Sans',sans-serif; color:var(--ink); min-height:100vh; transition:background 0.3s, color 0.3s; background-image: radial-gradient(ellipse at 20% 50%, rgba(196,87,42,0.06) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(212,168,83,0.08) 0%, transparent 50%); }
 
   #auth-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
   .auth-card { background:var(--paper); border:1px solid rgba(26,20,16,0.1); border-radius:20px; padding:40px 36px; width:100%; max-width:420px; box-shadow:0 8px 40px var(--shadow); animation:fadeUp 0.5s ease; }
@@ -69,16 +104,16 @@
   .cal-title { font-family:'Playfair Display',serif; font-size:1.2rem; }
   .cal-nav { background:none; border:1px solid rgba(26,20,16,0.15); border-radius:8px; padding:6px 14px; cursor:pointer; font-size:18px; transition:all 0.15s; line-height:1; }
   .cal-nav:hover { background:var(--rust); color:white; border-color:var(--rust); }
-  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
-  .cal-day-name { text-align:center; font-size:11px; color:#aaa; font-weight:500; text-transform:uppercase; padding:4px 0 10px; }
-  .cal-day { aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; cursor:pointer; transition:all 0.15s; position:relative; font-size:13px; gap:3px; }
-  .cal-day:hover:not(.other-month) { background:rgba(196,87,42,0.1); }
-  .cal-day.today { background:var(--rust); color:white; font-weight:700; }
-  .cal-day.other-month { color:#ddd; cursor:default; }
-  .cal-day.selected:not(.today) { background:var(--ink); color:white; }
-  .cal-dot { width:5px; height:5px; border-radius:50%; background:var(--rust); flex-shrink:0; }
-  .cal-day.today .cal-dot { background:rgba(255,255,255,0.85); }
-  .cal-day.selected:not(.today) .cal-dot { background:var(--gold); }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal-day-name { text-align:center; font-size:11px; color:#999; font-weight:700; text-transform:uppercase; padding:4px 0 12px; letter-spacing:0.06em; }
+  .cal-day { aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:10px; cursor:pointer; transition:all 0.15s; position:relative; font-size:15px; font-weight:500; gap:5px; background:rgba(26,20,16,0.03); }
+  .cal-day:hover:not(.other-month) { background:rgba(196,87,42,0.12); transform:scale(1.06); }
+  .cal-day.today { background:var(--rust); color:white; font-weight:700; font-size:16px; box-shadow:0 4px 14px rgba(196,87,42,0.45); }
+  .cal-day.other-month { color:#ccc; cursor:default; background:transparent; }
+  .cal-day.selected:not(.today) { background:var(--ink); color:white; box-shadow:0 4px 12px rgba(26,20,16,0.25); }
+  .cal-day.selected:not(.today) .cal-dot { background:var(--gold); box-shadow:0 1px 4px rgba(212,168,83,0.6); }
+  .cal-dot { width:8px; height:8px; border-radius:50%; background:var(--rust); flex-shrink:0; box-shadow:0 1px 4px rgba(196,87,42,0.5); }
+  .cal-day.today .cal-dot { background:white; box-shadow:0 1px 4px rgba(0,0,0,0.25); }
   .cal-events-day { margin-top:20px; padding-top:16px; border-top:1px solid rgba(26,20,16,0.08); }
   .cal-events-day-title { font-size:12px; color:#aaa; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:12px; font-weight:500; }
 
@@ -212,6 +247,7 @@
     <header>
       <div class="header-bar">
         <div class="user-info">
+          <button class="dark-toggle" onclick="toggleDark()" id="dark-btn">🌙 Oscuro</button>
           <span id="user-email-label"></span>
           <button class="btn-logout" onclick="logout()">Cerrar sesión</button>
         </div>
@@ -613,6 +649,22 @@ function aiDiscard() {
 }
 
 init();
+
+// ── DARK MODE ──
+function toggleDark() {
+  const isDark = document.body.classList.toggle('dark');
+  localStorage.setItem('nsmo_dark', isDark ? '1' : '0');
+  document.getElementById('dark-btn').textContent = isDark ? '☀️ Claro' : '🌙 Oscuro';
+}
+function applyDark() {
+  const saved = localStorage.getItem('nsmo_dark');
+  if (saved === '1') {
+    document.body.classList.add('dark');
+    const btn = document.getElementById('dark-btn');
+    if (btn) btn.textContent = '☀️ Claro';
+  }
+}
+applyDark();
 if('serviceWorker' in navigator){ navigator.serviceWorker.getRegistrations().then(r=>r.forEach(sw=>sw.unregister())); }
 </script>
 </body>
