@@ -17,7 +17,7 @@ export default async function handler(req, res) {
         'X-Title': 'NoSeMeOlvida'
       },
       body: JSON.stringify({
-        model: 'google/gemma-3-4b-it:free',
+        model: 'openrouter/auto',
         messages: [{ role: 'user', content: prompt }]
       })
     });
