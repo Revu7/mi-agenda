@@ -912,7 +912,47 @@ function applyDark() {
   }
 }
 applyDark();
-if('serviceWorker' in navigator){ navigator.serviceWorker.getRegistrations().then(r=>r.forEach(sw=>sw.unregister())); }
+// ── NOTIFICATIONS ──
+async function initNotifications() {
+  if (!('Notification' in window)) return;
+  if (!('serviceWorker' in navigator)) return;
+
+  // Register service worker
+  const reg = await navigator.serviceWorker.register('sw.js');
+
+  // Ask permission
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+
+  // Check every minute for upcoming tasks
+  setInterval(() => checkUpcomingTasks(reg), 60000);
+  checkUpcomingTasks(reg);
+}
+
+function checkUpcomingTasks(reg) {
+  if (Notification.permission !== 'granted') return;
+  const now = new Date();
+  events.forEach(ev => {
+    if (ev.done || !ev.time) return;
+    const [y,m,d] = ev.date.split('-').map(Number);
+    const [h,min] = ev.time.split(':').map(Number);
+    const taskTime = new Date(y, m-1, d, h, min);
+    const diff = (taskTime - now) / 60000; // minutes
+    if (diff > 59 && diff <= 60) {
+      reg.showNotification('⏰ NoSeMeOlvida', {
+        body: `En 1 hora: ${ev.title} a las ${ev.time}`,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: ev.id,
+        requireInteraction: true
+      });
+    }
+  });
+}
+
+init();
+initNotifications();
 </script>
 </body>
 </html>
