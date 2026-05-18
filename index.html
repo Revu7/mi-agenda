@@ -193,6 +193,39 @@
   body.dark .modal-task { background:#0f0e0c; }
   body.dark .postpone-opt { background:#2a2520; border-color:rgba(255,255,255,0.1); color:var(--ink); }
 
+  /* ── NOTES ── */
+  .notes-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
+  .notes-colors { display:flex; gap:8px; }
+  .note-color-btn { width:24px; height:24px; border-radius:50%; border:3px solid transparent; cursor:pointer; transition:all 0.15s; }
+  .note-color-btn.active { border-color:var(--ink); transform:scale(1.2); }
+  .note-add-area { background:var(--paper); border:1px solid rgba(26,20,16,0.1); border-radius:16px; padding:20px; margin-bottom:24px; box-shadow:0 4px 24px var(--shadow); }
+  .note-add-area textarea { width:100%; padding:10px 14px; border:1.5px solid rgba(26,20,16,0.12); border-radius:8px; font-family:'DM Sans',sans-serif; font-size:14px; color:var(--ink); background:white; outline:none; resize:vertical; margin-bottom:12px; transition:border-color 0.2s; }
+  .note-add-area textarea:focus { border-color:var(--rust); box-shadow:0 0 0 3px rgba(196,87,42,0.1); }
+  .notes-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px; }
+  .note-card { border-radius:12px; padding:18px; position:relative; box-shadow:0 4px 16px rgba(0,0,0,0.1); transition:transform 0.2s, box-shadow 0.2s; min-height:120px; display:flex; flex-direction:column; }
+  .note-card:hover { transform:translateY(-3px) rotate(0.5deg); box-shadow:0 8px 24px rgba(0,0,0,0.15); }
+  .note-card.color-yellow { background:#fef9c3; }
+  .note-card.color-pink { background:#ffe4e6; }
+  .note-card.color-blue { background:#dbeafe; }
+  .note-card.color-green { background:#dcfce7; }
+  .note-card.color-purple { background:#f3e8ff; }
+  .note-card.color-orange { background:#ffedd5; }
+  .note-content { font-size:14px; color:#1a1410; line-height:1.5; flex:1; white-space:pre-wrap; word-break:break-word; }
+  .note-footer { display:flex; justify-content:space-between; align-items:center; margin-top:12px; }
+  .note-date { font-size:10px; color:rgba(26,20,16,0.4); }
+  .note-delete { background:none; border:none; cursor:pointer; color:rgba(26,20,16,0.3); font-size:16px; padding:2px; transition:color 0.15s; line-height:1; }
+  .note-delete:hover { color:#e05555; }
+  .notes-empty { text-align:center; padding:60px 20px; color:#aaa; font-size:14px; grid-column:1/-1; }
+  .notes-empty .icon { font-size:3rem; margin-bottom:12px; }
+  body.dark .note-add-area textarea { background:#2a2520; color:var(--ink); }
+  body.dark .note-card.color-yellow { background:#3d3a00; }
+  body.dark .note-card.color-pink { background:#3d0010; }
+  body.dark .note-card.color-blue { background:#001e3d; }
+  body.dark .note-card.color-green { background:#003d12; }
+  body.dark .note-card.color-purple { background:#1e003d; }
+  body.dark .note-card.color-orange { background:#3d1a00; }
+  body.dark .note-content { color:#f0ebe0; }
+
   /* ── AI CARD ── */
   .ai-card { background:linear-gradient(135deg,#1a1410 0%,#2d1f14 100%); border-radius:16px; padding:24px; margin-bottom:28px; box-shadow:0 4px 24px rgba(196,87,42,0.2); color:white; }
   .ai-card-title { font-family:'Playfair Display',serif; font-size:1.1rem; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
@@ -287,6 +320,7 @@
     <div class="view-tabs">
       <button class="view-tab active" id="tab-lista" onclick="switchView('lista',this)">📋 Lista</button>
       <button class="view-tab" id="tab-calendario" onclick="switchView('calendario',this)">📅 Calendario</button>
+      <button class="view-tab" id="tab-notas" onclick="switchView('notas',this)">📝 Notas</button>
       <button class="view-tab" id="tab-nueva" onclick="switchView('nueva',this)">➕ Nueva</button>
     </div>
 
@@ -305,7 +339,24 @@
       </div>
     </div>
 
-    <div id="view-nueva" style="display:none">
+    <div id="view-notas" style="display:none">
+      <div class="notes-header">
+        <div class="section-title">Mis notas <span class="count-badge" id="notes-badge">0</span></div>
+        <div class="notes-colors">
+          <button class="note-color-btn active" data-color="yellow" onclick="selectNoteColor('yellow',this)" style="background:#fef08a"></button>
+          <button class="note-color-btn" data-color="pink" onclick="selectNoteColor('pink',this)" style="background:#fda4af"></button>
+          <button class="note-color-btn" data-color="blue" onclick="selectNoteColor('blue',this)" style="background:#93c5fd"></button>
+          <button class="note-color-btn" data-color="green" onclick="selectNoteColor('green',this)" style="background:#86efac"></button>
+          <button class="note-color-btn" data-color="purple" onclick="selectNoteColor('purple',this)" style="background:#d8b4fe"></button>
+          <button class="note-color-btn" data-color="orange" onclick="selectNoteColor('orange',this)" style="background:#fdba74"></button>
+        </div>
+      </div>
+      <div class="note-add-area">
+        <textarea id="note-input" placeholder="Escribe una nota rápida…" rows="3"></textarea>
+        <button class="btn-add" onclick="addNote()" id="btn-note-add">Añadir nota</button>
+      </div>
+      <div class="notes-grid" id="notes-grid"></div>
+    </div>
       <div class="add-card">
         <h2>Nueva gestión</h2>
         <div class="form-row full">
@@ -437,8 +488,10 @@ function switchView(view, btn) {
   btn.classList.add('active');
   document.getElementById('view-lista').style.display=view==='lista'?'block':'none';
   document.getElementById('view-calendario').style.display=view==='calendario'?'block':'none';
+  document.getElementById('view-notas').style.display=view==='notas'?'block':'none';
   document.getElementById('view-nueva').style.display=view==='nueva'?'block':'none';
   if(view==='calendario') renderCalendar();
+  if(view==='notas') loadNotes();
 }
 
 let authMode='login';
@@ -681,6 +734,61 @@ async function overdueAction(action, days) {
   render();
   renderCalendar();
   showOverdueModal();
+}
+
+// ── NOTES ──
+let notes = [];
+let selectedNoteColor = 'yellow';
+
+function selectNoteColor(color, btn) {
+  selectedNoteColor = color;
+  document.querySelectorAll('.note-color-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function loadNotes() {
+  const { data, error } = await sb.from('notes').select('*').order('created_at', { ascending: false });
+  if (!error) { notes = data || []; renderNotes(); }
+}
+
+async function addNote() {
+  const content = document.getElementById('note-input').value.trim();
+  if (!content) { toast('Escribe algo primero'); return; }
+  const btn = document.getElementById('btn-note-add');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  const { data, error } = await sb.from('notes').insert([{
+    user_id: currentUser.id, content, color: selectedNoteColor
+  }]).select().single();
+  btn.disabled = false; btn.textContent = 'Añadir nota';
+  if (error) { toast('Error al guardar'); return; }
+  notes.unshift(data);
+  document.getElementById('note-input').value = '';
+  renderNotes();
+  toast('✓ Nota añadida');
+}
+
+async function deleteNote(id) {
+  const { error } = await sb.from('notes').delete().eq('id', id);
+  if (!error) { notes = notes.filter(n => n.id !== id); renderNotes(); toast('Nota eliminada'); }
+}
+
+function renderNotes() {
+  document.getElementById('notes-badge').textContent = notes.length;
+  const grid = document.getElementById('notes-grid');
+  if (!notes.length) {
+    grid.innerHTML = `<div class="notes-empty"><div class="icon">📝</div><div>No tienes notas todavía.<br>¡Añade tu primera nota!</div></div>`;
+    return;
+  }
+  grid.innerHTML = notes.map(n => {
+    const date = new Date(n.created_at).toLocaleDateString('es-ES', { day:'numeric', month:'short' });
+    return `<div class="note-card color-${n.color}">
+      <div class="note-content">${escHtml(n.content)}</div>
+      <div class="note-footer">
+        <span class="note-date">${date}</span>
+        <button class="note-delete" onclick="deleteNote('${n.id}')">×</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ── GOOGLE CALENDAR ──
