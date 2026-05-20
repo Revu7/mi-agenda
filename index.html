@@ -950,9 +950,38 @@ function checkUpcomingTasks(reg) {
     }
   });
 }
-
 init();
 initNotifications();
+// ── CAPACITOR NOTIFICATIONS ──
+async function initCapacitorNotifications() {
+  if (!window.Capacitor) return;
+  const { LocalNotifications } = Capacitor.Plugins;
+  const perm = await LocalNotifications.requestPermissions();
+  if (perm.display !== 'granted') return;
+
+  // Schedule notifications for today's tasks with time
+  const today = new Date().toISOString().split('T')[0];
+  const todayTasks = events.filter(ev => ev.date === today && ev.time && !ev.done);
+
+  const notifications = todayTasks.map(ev => {
+    const [h, min] = ev.time.split(':').map(Number);
+    const scheduleDate = new Date();
+    scheduleDate.setHours(h - 1, min, 0, 0);
+    return {
+      title: '⏰ NoSeMeOlvida',
+      body: `En 1 hora: ${ev.title} a las ${ev.time}`,
+      id: Math.abs(ev.id.split('-').join('').slice(0,8), 16) || Math.floor(Math.random()*10000),
+      schedule: { at: scheduleDate },
+      sound: 'default',
+      actionTypeId: '',
+      extra: null
+    };
+  }).filter(n => n.schedule.at > new Date());
+
+  if (notifications.length > 0) {
+    await LocalNotifications.schedule({ notifications });
+  }
+}
 </script>
 </body>
 </html>
