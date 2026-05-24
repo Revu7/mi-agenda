@@ -249,7 +249,6 @@
 
   .gcal-btn { background:none; border:none; cursor:pointer; color:#ccc; font-size:14px; padding:2px 4px; border-radius:4px; transition:color 0.15s,background 0.15s; flex-shrink:0; }
   .gcal-btn:hover { color:#4285f4; background:rgba(66,133,244,0.1); }
-
   .remind-btn { background:none; border:none; cursor:pointer; color:#ccc; font-size:14px; padding:2px 4px; border-radius:4px; transition:color 0.15s,background 0.15s; flex-shrink:0; }
   .remind-btn:hover { color:var(--gold); background:rgba(212,168,83,0.1); }
   .remind-btn.active { color:var(--gold); }
@@ -357,6 +356,7 @@
       </div>
       <div class="notes-grid" id="notes-grid"></div>
     </div>
+
     <div id="view-nueva" style="display:none">
       <div class="add-card">
         <h2>Nueva gestión</h2>
@@ -482,6 +482,7 @@ async function showApp() {
   });
   const now=new Date(); calYear=now.getFullYear(); calMonth=now.getMonth();
   await loadEvents();
+  initCapacitorNotifications();
 }
 
 function switchView(view, btn) {
@@ -557,7 +558,7 @@ async function toggleDone(id) {
   const ev=events.find(e=>e.id===id); if(!ev) return;
   const newDone=!ev.done;
   const{error}=await sb.from('events').update({done:newDone}).eq('id',id);
-  if(!error){ ev.done=newDone; render(); if(calSelectedDate) calSelectDay(calSelectedDate); }
+  if(!error){ ev.done=newDone; render(); if(calSelectedDate) calShowDayEvents(calSelectedDate); }
 }
 
 async function deleteEvent(id) {
@@ -597,7 +598,7 @@ function renderCalendar() {
   const remaining=totalCells-startDow-lastDay.getDate();
   for(let d=1;d<=remaining;d++) html+=`<div class="cal-day other-month"><span>${d}</span></div>`;
   document.getElementById('cal-grid').innerHTML=html;
-  if(calSelectedDate) { const el=document.getElementById('cal-events-day'); if(el.style.display!=='none') calShowDayEvents(calSelectedDate); }
+  if(calSelectedDate) calShowDayEvents(calSelectedDate);
 }
 
 function calSelectDay(dateStr) {
@@ -679,309 +680,170 @@ function render() {
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
 
 // ── OVERDUE MODAL ──
-let overdueQueue = [];
-let overdueIndex = 0;
-
+let overdueQueue=[], overdueIndex=0;
 function checkOverdue() {
-  const today = new Date(); today.setHours(0,0,0,0);
-  overdueQueue = events.filter(ev => {
-    if (ev.done) return false;
-    const [y,m,d] = ev.date.split('-').map(Number);
-    const evDate = new Date(y,m-1,d);
-    return evDate < today;
+  const today=new Date(); today.setHours(0,0,0,0);
+  overdueQueue=events.filter(ev=>{
+    if(ev.done) return false;
+    const[y,m,d]=ev.date.split('-').map(Number);
+    return new Date(y,m-1,d)<today;
   });
-  overdueIndex = 0;
-  if (overdueQueue.length > 0) showOverdueModal();
+  overdueIndex=0;
+  if(overdueQueue.length>0) showOverdueModal();
 }
-
 function showOverdueModal() {
-  if (overdueIndex >= overdueQueue.length) {
-    document.getElementById('overdue-modal').style.display = 'none';
-    return;
-  }
-  const ev = overdueQueue[overdueIndex];
-  const [y,m,d] = ev.date.split('-').map(Number);
-  const dateLabel = new Date(y,m-1,d).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
-  document.getElementById('modal-progress').textContent = `${overdueIndex+1} de ${overdueQueue.length} tareas pendientes`;
-  document.getElementById('modal-task-title').textContent = ev.title;
-  document.getElementById('modal-task-date').textContent = `Fecha original: ${dateLabel}`;
-  document.getElementById('postpone-options').style.display = 'none';
-  document.getElementById('overdue-modal').style.display = 'flex';
+  if(overdueIndex>=overdueQueue.length){ document.getElementById('overdue-modal').style.display='none'; return; }
+  const ev=overdueQueue[overdueIndex];
+  const[y,m,d]=ev.date.split('-').map(Number);
+  const dateLabel=new Date(y,m-1,d).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('modal-progress').textContent=`${overdueIndex+1} de ${overdueQueue.length} tareas pendientes`;
+  document.getElementById('modal-task-title').textContent=ev.title;
+  document.getElementById('modal-task-date').textContent=`Fecha original: ${dateLabel}`;
+  document.getElementById('postpone-options').style.display='none';
+  document.getElementById('overdue-modal').style.display='flex';
 }
-
-function togglePostpone() {
-  const opts = document.getElementById('postpone-options');
-  opts.style.display = opts.style.display === 'flex' ? 'none' : 'flex';
-}
-
-async function overdueAction(action, days) {
-  const ev = overdueQueue[overdueIndex];
-  if (action === 'done') {
-    await sb.from('events').update({ done: true }).eq('id', ev.id);
-    ev.done = true;
-    toast('✅ Marcada como completada');
-  } else if (action === 'postpone') {
-    const newDate = new Date(); newDate.setDate(newDate.getDate() + days);
-    const newDateStr = newDate.toISOString().split('T')[0];
-    await sb.from('events').update({ date: newDateStr }).eq('id', ev.id);
-    ev.date = newDateStr;
-    toast(`📅 Pospuesta ${days === 1 ? 'a mañana' : `${days} días`}`);
-  } else if (action === 'discard') {
-    await sb.from('events').delete().eq('id', ev.id);
-    events = events.filter(e => e.id !== ev.id);
-    toast('🗑️ Tarea descartada');
-  }
-  overdueIndex++;
-  render();
-  renderCalendar();
-  showOverdueModal();
+function togglePostpone(){ const opts=document.getElementById('postpone-options'); opts.style.display=opts.style.display==='flex'?'none':'flex'; }
+async function overdueAction(action,days) {
+  const ev=overdueQueue[overdueIndex];
+  if(action==='done'){ await sb.from('events').update({done:true}).eq('id',ev.id); ev.done=true; toast('✅ Marcada como completada'); }
+  else if(action==='postpone'){ const nd=new Date(); nd.setDate(nd.getDate()+days); const nds=nd.toISOString().split('T')[0]; await sb.from('events').update({date:nds}).eq('id',ev.id); ev.date=nds; toast(`📅 Pospuesta ${days===1?'a mañana':days+' días'}`); }
+  else if(action==='discard'){ await sb.from('events').delete().eq('id',ev.id); events=events.filter(e=>e.id!==ev.id); toast('🗑️ Tarea descartada'); }
+  overdueIndex++; render(); renderCalendar(); showOverdueModal();
 }
 
 // ── NOTES ──
-let notes = [];
-let selectedNoteColor = 'yellow';
-
-function selectNoteColor(color, btn) {
-  selectedNoteColor = color;
-  document.querySelectorAll('.note-color-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+let notes=[], selectedNoteColor='yellow';
+function selectNoteColor(color,btn){ selectedNoteColor=color; document.querySelectorAll('.note-color-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
+async function loadNotes(){ const{data,error}=await sb.from('notes').select('*').order('created_at',{ascending:false}); if(!error){ notes=data||[]; renderNotes(); } }
+async function addNote(){
+  const content=document.getElementById('note-input').value.trim();
+  if(!content){ toast('Escribe algo primero'); return; }
+  const btn=document.getElementById('btn-note-add');
+  btn.disabled=true; btn.textContent='Guardando…';
+  const{data,error}=await sb.from('notes').insert([{user_id:currentUser.id,content,color:selectedNoteColor}]).select().single();
+  btn.disabled=false; btn.textContent='Añadir nota';
+  if(error){ toast('Error al guardar'); return; }
+  notes.unshift(data); document.getElementById('note-input').value=''; renderNotes(); toast('✓ Nota añadida');
 }
-
-async function loadNotes() {
-  const { data, error } = await sb.from('notes').select('*').order('created_at', { ascending: false });
-  if (!error) { notes = data || []; renderNotes(); }
-}
-
-async function addNote() {
-  const content = document.getElementById('note-input').value.trim();
-  if (!content) { toast('Escribe algo primero'); return; }
-  const btn = document.getElementById('btn-note-add');
-  btn.disabled = true; btn.textContent = 'Guardando…';
-  const { data, error } = await sb.from('notes').insert([{
-    user_id: currentUser.id, content, color: selectedNoteColor
-  }]).select().single();
-  btn.disabled = false; btn.textContent = 'Añadir nota';
-  if (error) { toast('Error al guardar'); return; }
-  notes.unshift(data);
-  document.getElementById('note-input').value = '';
-  renderNotes();
-  toast('✓ Nota añadida');
-}
-
-async function deleteNote(id) {
-  const { error } = await sb.from('notes').delete().eq('id', id);
-  if (!error) { notes = notes.filter(n => n.id !== id); renderNotes(); toast('Nota eliminada'); }
-}
-
-function renderNotes() {
-  document.getElementById('notes-badge').textContent = notes.length;
-  const grid = document.getElementById('notes-grid');
-  if (!notes.length) {
-    grid.innerHTML = `<div class="notes-empty"><div class="icon">📝</div><div>No tienes notas todavía.<br>¡Añade tu primera nota!</div></div>`;
-    return;
-  }
-  grid.innerHTML = notes.map(n => {
-    const date = new Date(n.created_at).toLocaleDateString('es-ES', { day:'numeric', month:'short' });
-    return `<div class="note-card color-${n.color}">
-      <div class="note-content">${escHtml(n.content)}</div>
-      <div class="note-footer">
-        <span class="note-date">${date}</span>
-        <button class="note-delete" onclick="deleteNote('${n.id}')">×</button>
-      </div>
-    </div>`;
+async function deleteNote(id){ const{error}=await sb.from('notes').delete().eq('id',id); if(!error){ notes=notes.filter(n=>n.id!==id); renderNotes(); toast('Nota eliminada'); } }
+function renderNotes(){
+  document.getElementById('notes-badge').textContent=notes.length;
+  const grid=document.getElementById('notes-grid');
+  if(!notes.length){ grid.innerHTML=`<div class="notes-empty"><div class="icon">📝</div><div>No tienes notas todavía.<br>¡Añade tu primera nota!</div></div>`; return; }
+  grid.innerHTML=notes.map(n=>{
+    const date=new Date(n.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+    return `<div class="note-card color-${n.color}"><div class="note-content">${escHtml(n.content)}</div><div class="note-footer"><span class="note-date">${date}</span><button class="note-delete" onclick="deleteNote('${n.id}')">×</button></div></div>`;
   }).join('');
 }
 
 // ── GOOGLE CALENDAR ──
 function addToGCal(id) {
-  const ev = events.find(e => e.id === id);
-  if (!ev) return;
-  const [y,m,d] = ev.date.split('-').map(Number);
-  const pad = n => String(n).padStart(2,'0');
+  const ev=events.find(e=>e.id===id); if(!ev) return;
+  const[y,m,d]=ev.date.split('-').map(Number);
+  const pad=n=>String(n).padStart(2,'0');
   let dates;
-  if (ev.time) {
-    const [h,min] = ev.time.split(':').map(Number);
-    const start = `${y}${pad(m)}${pad(d)}T${pad(h)}${pad(min)}00`;
-    const endH = h + 1;
-    const end = `${y}${pad(m)}${pad(d)}T${pad(endH)}${pad(min)}00`;
-    dates = `${start}/${end}`;
-  } else {
-    const dateStr = `${y}${pad(m)}${pad(d)}`;
-    dates = `${dateStr}/${dateStr}`;
-  }
-  const params = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: ev.title,
-    dates,
-    details: ev.note || '',
-  });
-  window.open(`https://calendar.google.com/calendar/render?${params}`, '_blank');
+  if(ev.time){ const[h,min]=ev.time.split(':').map(Number); const start=`${y}${pad(m)}${pad(d)}T${pad(h)}${pad(min)}00`; const end=`${y}${pad(m)}${pad(d)}T${pad(h+1)}${pad(min)}00`; dates=`${start}/${end}`; }
+  else{ const ds=`${y}${pad(m)}${pad(d)}`; dates=`${ds}/${ds}`; }
+  const params=new URLSearchParams({action:'TEMPLATE',text:ev.title,dates,details:ev.note||''});
+  window.open(`https://calendar.google.com/calendar/render?${params}`,'_blank');
 }
 
 // ── REMINDER ──
 async function sendReminder(id) {
-  const ev = events.find(e => e.id === id);
-  if (!ev) return;
-  const email = currentUser.email;
-  const [y,m,d] = ev.date.split('-').map(Number);
-  const dateLabel = new Date(y,m-1,d).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  const ev=events.find(e=>e.id===id); if(!ev) return;
+  const[y,m,d]=ev.date.split('-').map(Number);
+  const dateLabel=new Date(y,m-1,d).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
   toast('Enviando recordatorio…');
-  const res = await fetch('/api/remind', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ to: email, taskTitle: ev.title, taskDate: dateLabel, taskTime: ev.time })
-  });
-  if (res.ok) toast('✓ Recordatorio enviado a ' + email);
+  const res=await fetch('/api/remind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:currentUser.email,taskTitle:ev.title,taskDate:dateLabel,taskTime:ev.time})});
+  if(res.ok) toast('✓ Recordatorio enviado a '+currentUser.email);
   else toast('Error al enviar el recordatorio');
 }
-let aiParsed = null;
 
+// ── AI ──
+let aiParsed=null;
 async function aiParse() {
-  const input = document.getElementById('ai-input').value.trim();
-  if (!input) { toast('Escribe algo primero'); return; }
-  const btn = document.getElementById('ai-btn');
-  btn.disabled = true; btn.textContent = '…';
-  const today = new Date().toISOString().split('T')[0];
-  const prompt = `Hoy es ${today}. El usuario ha escrito: "${input}"
-Extrae la información y responde SOLO con JSON, sin texto adicional, sin backticks:
-{"title":"título de la tarea","date":"YYYY-MM-DD","time":"HH:MM o null si no se menciona","cat":"gestion|medico|trabajo|personal|otro","note":"nota adicional o null"}
-Categorías: gestion=trámites/gestiones, medico=salud/dentista/médico, trabajo=laboral, personal=hogar/familia, otro=resto.
-Si dice "mañana" suma 1 día a hoy. Si dice "el lunes" calcula el próximo lunes. Si no hay hora pon null.`;
-
+  const input=document.getElementById('ai-input').value.trim();
+  if(!input){ toast('Escribe algo primero'); return; }
+  const btn=document.getElementById('ai-btn');
+  btn.disabled=true; btn.textContent='…';
+  const today=new Date().toISOString().split('T')[0];
+  const prompt=`Hoy es ${today}. El usuario ha escrito: "${input}"\nExtrae la información y responde SOLO con JSON, sin texto adicional, sin backticks:\n{"title":"título de la tarea","date":"YYYY-MM-DD","time":"HH:MM o null si no se menciona","cat":"gestion|medico|trabajo|personal|otro","note":"nota adicional o null"}\nCategorías: gestion=trámites/gestiones, medico=salud/dentista/médico, trabajo=laboral, personal=hogar/familia, otro=resto.\nSi dice "mañana" suma 1 día a hoy. Si dice "el lunes" calcula el próximo lunes. Si no hay hora pon null.`;
   try {
-    const res = await fetch('/api/gemini', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt })
-    });
-    const data = await res.json();
-    const text = data.candidates[0].content.parts[0].text.trim().replace(/```json|```/g,'').trim();
-    aiParsed = JSON.parse(text);
-
-    const [y,m,d] = aiParsed.date.split('-').map(Number);
-    const dateLabel = new Date(y,m-1,d).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
-
-    document.getElementById('ai-prev-title').textContent = aiParsed.title;
-    document.getElementById('ai-prev-date').textContent = dateLabel;
-    document.getElementById('ai-prev-time').textContent = aiParsed.time || 'Sin hora';
-    document.getElementById('ai-prev-cat').textContent = catLabels[aiParsed.cat] || aiParsed.cat;
-    document.getElementById('ai-preview').style.display = 'block';
-  } catch(e) {
-    toast('No he entendido bien, prueba a ser más específico');
-  }
-  btn.disabled = false; btn.textContent = '✨ Crear';
+    const res=await fetch('/api/gemini',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
+    const data=await res.json();
+    const text=data.candidates[0].content.parts[0].text.trim().replace(/```json|```/g,'').trim();
+    aiParsed=JSON.parse(text);
+    const[y,m,d]=aiParsed.date.split('-').map(Number);
+    const dateLabel=new Date(y,m-1,d).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+    document.getElementById('ai-prev-title').textContent=aiParsed.title;
+    document.getElementById('ai-prev-date').textContent=dateLabel;
+    document.getElementById('ai-prev-time').textContent=aiParsed.time||'Sin hora';
+    document.getElementById('ai-prev-cat').textContent=catLabels[aiParsed.cat]||aiParsed.cat;
+    document.getElementById('ai-preview').style.display='block';
+  } catch(e){ toast('No he entendido bien, prueba a ser más específico'); }
+  btn.disabled=false; btn.textContent='✨ Crear';
 }
-
 async function aiConfirm() {
-  if (!aiParsed) return;
-  const { data, error } = await sb.from('events').insert([{
-    user_id: currentUser.id,
-    title: aiParsed.title,
-    date: aiParsed.date,
-    time: aiParsed.time || null,
-    note: aiParsed.note || null,
-    cat: aiParsed.cat,
-    done: false
-  }]).select().single();
-  if (error) { toast('Error al guardar'); return; }
-  events.push(data); render(); renderCalendar();
-  toast('✓ Tarea añadida por IA');
-  aiDiscard();
+  if(!aiParsed) return;
+  const{data,error}=await sb.from('events').insert([{user_id:currentUser.id,title:aiParsed.title,date:aiParsed.date,time:aiParsed.time||null,note:aiParsed.note||null,cat:aiParsed.cat,done:false}]).select().single();
+  if(error){ toast('Error al guardar'); return; }
+  events.push(data); render(); renderCalendar(); toast('✓ Tarea añadida por IA'); aiDiscard();
 }
+function aiDiscard(){ aiParsed=null; document.getElementById('ai-input').value=''; document.getElementById('ai-preview').style.display='none'; }
 
-function aiDiscard() {
-  aiParsed = null;
-  document.getElementById('ai-input').value = '';
-  document.getElementById('ai-preview').style.display = 'none';
-}
-
-init();
-
-// ── DARK MODE ──
-function toggleDark() {
-  const isDark = document.body.classList.toggle('dark');
-  localStorage.setItem('nsmo_dark', isDark ? '1' : '0');
-  document.getElementById('dark-btn').textContent = isDark ? '☀️ Claro' : '🌙 Oscuro';
-}
-function applyDark() {
-  const saved = localStorage.getItem('nsmo_dark');
-  if (saved === '1') {
-    document.body.classList.add('dark');
-    const btn = document.getElementById('dark-btn');
-    if (btn) btn.textContent = '☀️ Claro';
-  }
-}
-applyDark();
-// ── NOTIFICATIONS ──
-async function initNotifications() {
-  if (!('Notification' in window)) return;
-  if (!('serviceWorker' in navigator)) return;
-
-  // Register service worker
-  const reg = await navigator.serviceWorker.register('sw.js');
-
-  // Ask permission
-  if (Notification.permission === 'default') {
-    await Notification.requestPermission();
-  }
-
-  // Check every minute for upcoming tasks
-  setInterval(() => checkUpcomingTasks(reg), 60000);
-  checkUpcomingTasks(reg);
-}
-
-function checkUpcomingTasks(reg) {
-  if (Notification.permission !== 'granted') return;
-  const now = new Date();
-  events.forEach(ev => {
-    if (ev.done || !ev.time) return;
-    const [y,m,d] = ev.date.split('-').map(Number);
-    const [h,min] = ev.time.split(':').map(Number);
-    const taskTime = new Date(y, m-1, d, h, min);
-    const diff = (taskTime - now) / 60000; // minutes
-    if (diff > 59 && diff <= 60) {
-      reg.showNotification('⏰ NoSeMeOlvida', {
-        body: `En 1 hora: ${ev.title} a las ${ev.time}`,
-        icon: '/icon-192.png',
-        badge: '/icon-192.png',
-        tag: ev.id,
-        requireInteraction: true
-      });
-    }
-  });
-}
-init();
-initNotifications();
 // ── CAPACITOR NOTIFICATIONS ──
 async function initCapacitorNotifications() {
-  if (!window.Capacitor) return;
-  const { LocalNotifications } = Capacitor.Plugins;
-  const perm = await LocalNotifications.requestPermissions();
-  if (perm.display !== 'granted') return;
+  if (!window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.LocalNotifications) return;
+  const { LocalNotifications } = window.Capacitor.Plugins;
+  try {
+    const perm = await LocalNotifications.requestPermissions();
+    console.log('Notification permission:', perm.display);
+    if (perm.display !== 'granted') return;
 
-  // Schedule notifications for today's tasks with time
-  const today = new Date().toISOString().split('T')[0];
-  const todayTasks = events.filter(ev => ev.date === today && ev.time && !ev.done);
+    // Cancel all previous notifications first
+    await LocalNotifications.cancelAll();
 
-  const notifications = todayTasks.map(ev => {
-    const [h, min] = ev.time.split(':').map(Number);
-    const scheduleDate = new Date();
-    scheduleDate.setHours(h - 1, min, 0, 0);
-    return {
-      title: '⏰ NoSeMeOlvida',
-      body: `En 1 hora: ${ev.title} a las ${ev.time}`,
-      id: Math.abs(ev.id.split('-').join('').slice(0,8), 16) || Math.floor(Math.random()*10000),
-      schedule: { at: scheduleDate },
-      sound: 'default',
-      actionTypeId: '',
-      extra: null
-    };
-  }).filter(n => n.schedule.at > new Date());
+    const today = new Date().toISOString().split('T')[0];
+    const todayTasks = events.filter(ev => ev.date === today && ev.time && !ev.done);
+    console.log('Tasks today with time:', todayTasks.length);
 
-  if (notifications.length > 0) {
-    await LocalNotifications.schedule({ notifications });
+    const notifications = [];
+    todayTasks.forEach((ev, i) => {
+      const [h, min] = ev.time.split(':').map(Number);
+      const scheduleDate = new Date();
+      scheduleDate.setHours(h - 1, min, 0, 0);
+      console.log('Task:', ev.title, 'Scheduled for:', scheduleDate.toISOString(), 'Now:', new Date().toISOString());
+      if (scheduleDate > new Date()) {
+        notifications.push({
+          title: '⏰ NoSeMeOlvida',
+          body: `En 1 hora: ${ev.title} a las ${ev.time}`,
+          id: i + 1,
+          schedule: { at: scheduleDate },
+          sound: 'default',
+          actionTypeId: '',
+          extra: null
+        });
+      }
+    });
+
+    if (notifications.length > 0) {
+      await LocalNotifications.schedule({ notifications });
+      console.log('Scheduled', notifications.length, 'notifications');
+      toast(`🔔 ${notifications.length} recordatorio(s) programado(s)`);
+    } else {
+      console.log('No upcoming tasks to notify');
+    }
+  } catch(e) {
+    console.log('Notification error:', e.message);
   }
 }
+
+// ── DARK MODE ──
+function toggleDark(){ const isDark=document.body.classList.toggle('dark'); localStorage.setItem('nsmo_dark',isDark?'1':'0'); document.getElementById('dark-btn').textContent=isDark?'☀️ Claro':'🌙 Oscuro'; }
+function applyDark(){ const saved=localStorage.getItem('nsmo_dark'); if(saved==='1'){ document.body.classList.add('dark'); const btn=document.getElementById('dark-btn'); if(btn) btn.textContent='☀️ Claro'; } }
+applyDark();
+
+init();
 </script>
 </body>
 </html>
