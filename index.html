@@ -196,6 +196,11 @@
   body.dark .list-new-form { background:#1a1814; border-color:rgba(255,255,255,0.08); }
   body.dark .list-new-form input { background:#2a2520; color:var(--ink); border-color:rgba(255,255,255,0.1); }
 
+  .list-sort-row { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+  .list-sort-btn { padding:5px 12px; border-radius:20px; border:1px solid rgba(26,20,16,0.15); background:transparent; font-size:12px; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; color:#aaa; }
+  .list-sort-btn.active { background:var(--ink); color:white; border-color:var(--ink); }
+  .list-sort-btn:hover:not(.active) { border-color:var(--rust); color:var(--rust); }
+
   .list-scan-btn { padding:10px 12px; background:rgba(196,87,42,0.1); color:var(--rust); border:1.5px solid rgba(196,87,42,0.3); border-radius:8px; font-size:16px; cursor:pointer; transition:all 0.2s; flex-shrink:0; }
   .list-scan-btn:hover { background:var(--rust); color:white; border-color:var(--rust); }
   body.dark .list-add-row input { background:#2a2520; color:var(--ink); border-color:rgba(255,255,255,0.1); }
@@ -397,6 +402,11 @@
             <button class="list-back-btn" onclick="showListsIndex()">← Volver</button>
             <div class="list-detail-title" id="list-detail-title"></div>
             <div class="list-detail-progress" id="list-detail-progress"></div>
+          </div>
+          <div class="list-sort-row">
+            <button class="list-sort-btn active" id="sort-btn-default" onclick="sortItems('default',this)">📋 Original</button>
+            <button class="list-sort-btn" id="sort-btn-alpha" onclick="sortItems('alpha',this)">🔤 A-Z</button>
+            <button class="list-sort-btn" id="sort-btn-status" onclick="sortItems('status',this)">✅ Estado</button>
           </div>
           <div class="list-progress-bar"><div class="list-progress-fill" id="list-progress-fill" style="width:0%"></div></div>
           <div class="list-add-row">
@@ -779,7 +789,7 @@ function triggerPhotoScan(){
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
-            prompt:'Analiza esta imagen y extrae todos los elementos de la lista o texto que veas. Devuelve SOLO un array JSON con los elementos, sin texto adicional ni backticks. Ejemplo: ["Leche","Pan","Huevos"]. Si no ves ninguna lista o texto, devuelve [].',
+            prompt:'Analiza esta imagen. Puede ser una lista escrita a mano, un ticket de compra, apuntes, o cualquier texto con elementos. Extrae TODOS los elementos o líneas de texto que veas. Devuelve SOLO un array JSON con los elementos como strings, sin texto adicional ni backticks ni explicaciones. Ejemplo: ["Leche","Pan","Huevos"]. Si hay números o cantidades al principio inclúyelos. Si no encuentras nada devuelve [].',
             imageBase64:base64
           })
         });
@@ -835,9 +845,18 @@ function showListsIndex(){
   document.getElementById('list-detail').style.display='none';
 }
 
+let currentSort='default';
+
+function sortItems(type, btn){
+  currentSort=type;
+  document.querySelectorAll('.list-sort-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderListItems();
+}
+
 async function loadListItems(){
   const{data,error}=await sb.from('list_items').select('*').eq('list_id',currentListId).order('created_at');
-  if(!error){listItems=data||[];renderListItems();}
+  if(!error){listItems=data||[];currentSort='default';document.querySelectorAll('.list-sort-btn').forEach(b=>b.classList.remove('active'));document.getElementById('sort-btn-default').classList.add('active');renderListItems();}
 }
 
 async function addListItem(){
@@ -867,7 +886,12 @@ function renderListItems(){
   document.getElementById('list-progress-fill').style.width=pct+'%';
   const container=document.getElementById('list-items-container');
   if(!listItems.length){container.innerHTML=`<div class="empty-state"><div class="icon">📋</div><div>Lista vacía.<br>Añade el primer elemento.</div></div>`;return;}
-  container.innerHTML=listItems.map(item=>`
+
+  let sorted=[...listItems];
+  if(currentSort==='alpha') sorted.sort((a,b)=>a.content.localeCompare(b.content,'es'));
+  else if(currentSort==='status') sorted.sort((a,b)=>a.done===b.done?0:a.done?1:-1);
+
+  container.innerHTML=sorted.map(item=>`
     <div class="list-item ${item.done?'done':''}">
       <button class="list-item-check" onclick="toggleListItem('${item.id}')">✓</button>
       <span class="list-item-text">${escHtml(item.content)}</span>
