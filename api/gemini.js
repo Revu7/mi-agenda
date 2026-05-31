@@ -16,7 +16,7 @@ export default async function handler(req, res) {
       : [{ role: 'user', content: prompt }];
 
     const model = imageBase64
-      ? 'google/gemini-2.0-flash-exp:free'
+      ? 'meta-llama/llama-3.2-11b-vision-instruct:free'
       : 'openrouter/auto';
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
