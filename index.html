@@ -74,8 +74,9 @@
   .btn-logout { font-size:12px; color:#aaa; background:none; border:1px solid rgba(26,20,16,0.15); border-radius:6px; padding:4px 10px; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; }
   .btn-logout:hover { color:var(--rust); border-color:var(--rust); }
 
-  .view-tabs { display:flex; gap:3px; margin-bottom:28px; background:white; border-radius:12px; padding:4px; border:1px solid rgba(26,20,16,0.08); box-shadow:0 2px 12px var(--shadow); overflow-x:auto; }
-  .view-tab { flex:1; padding:9px 6px; text-align:center; font-size:12px; cursor:pointer; border:none; background:none; font-family:'DM Sans',sans-serif; color:#aaa; border-radius:8px; transition:all 0.2s; font-weight:500; white-space:nowrap; min-width:60px; }
+  .view-tabs { display:flex; gap:3px; margin-bottom:28px; background:white; border-radius:12px; padding:4px; border:1px solid rgba(26,20,16,0.08); box-shadow:0 2px 12px var(--shadow); overflow-x:auto; scrollbar-width:none; -ms-overflow-style:none; }
+  .view-tabs::-webkit-scrollbar { display:none; }
+  .view-tab { flex:0 0 auto; padding:9px 14px; text-align:center; font-size:12px; cursor:pointer; border:none; background:none; font-family:'DM Sans',sans-serif; color:#aaa; border-radius:8px; transition:all 0.2s; font-weight:500; white-space:nowrap; }
   .view-tab.active { background:var(--ink); color:white; }
 
   /* CALENDAR */
@@ -187,6 +188,8 @@
   .list-item-delete:hover { color:#e05555; }
   .list-progress-bar { height:4px; background:rgba(26,20,16,0.08); border-radius:2px; margin-bottom:20px; overflow:hidden; }
   .list-progress-fill { height:100%; background:var(--sage); border-radius:2px; transition:width 0.3s; }
+  .list-scan-btn { padding:10px 12px; background:rgba(196,87,42,0.1); color:var(--rust); border:1.5px solid rgba(196,87,42,0.3); border-radius:8px; font-size:16px; cursor:pointer; transition:all 0.2s; flex-shrink:0; }
+  .list-scan-btn:hover { background:var(--rust); color:white; border-color:var(--rust); }
   body.dark .list-add-row input { background:#2a2520; color:var(--ink); border-color:rgba(255,255,255,0.1); }
   body.dark .list-back-btn { border-color:rgba(255,255,255,0.15); }
 
@@ -386,6 +389,7 @@
           <div class="list-add-row">
             <input type="text" id="list-item-input" placeholder="Añadir elemento…" onkeydown="if(event.key==='Enter') addListItem()">
             <button class="list-add-btn" onclick="addListItem()">Añadir</button>
+            <button class="list-scan-btn" onclick="triggerPhotoScan()" title="Escanear con IA">📷</button>
           </div>
           <div id="list-items-container"></div>
         </div>
@@ -730,7 +734,52 @@ async function createList(){
   const name=prompt('Nombre de la lista:');
   if(!name||!name.trim())return;
   const{data,error}=await sb.from('lists').insert([{user_id:currentUser.id,name:name.trim()}]).select().single();
-  if(!error){lists.push(data);renderLists();toast('✓ Lista creada');}
+  if(!error){lists.push(data);renderLists();toast('✓ Lista creada');
+    if(confirm('¿Quieres añadir elementos escaneando una foto o imagen?')){
+      openList(data.id,data.name);
+      setTimeout(()=>triggerPhotoScan(),300);
+    }
+  }
+}
+
+function triggerPhotoScan(){
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='image/*';
+  input.capture='environment';
+  input.onchange=async(e)=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    toast('Analizando imagen con IA…');
+    const reader=new FileReader();
+    reader.onload=async(ev)=>{
+      const base64=ev.target.result.split(',')[1];
+      try{
+        const res=await fetch('/api/gemini',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            prompt:'Analiza esta imagen y extrae todos los elementos de la lista o texto que veas. Devuelve SOLO un array JSON con los elementos, sin texto adicional ni backticks. Ejemplo: ["Leche","Pan","Huevos"]. Si no ves ninguna lista o texto, devuelve [].',
+            imageBase64:base64
+          })
+        });
+        const data=await res.json();
+        const text=data.candidates[0].content.parts[0].text.trim().replace(/```json|```/g,'').trim();
+        const items=JSON.parse(text);
+        if(!Array.isArray(items)||items.length===0){toast('No he encontrado elementos en la imagen');return;}
+        let added=0;
+        for(const content of items){
+          if(!content||!content.trim())continue;
+          const{data:item,error}=await sb.from('list_items').insert([{list_id:currentListId,content:content.trim()}]).select().single();
+          if(!error){listItems.push(item);added++;}
+        }
+        renderListItems();
+        toast(`✓ ${added} elementos añadidos desde la imagen`);
+      }catch(e){toast('Error al analizar la imagen');}
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
 }
 
 async function deleteList(id,e){
