@@ -188,6 +188,14 @@
   .list-item-delete:hover { color:#e05555; }
   .list-progress-bar { height:4px; background:rgba(26,20,16,0.08); border-radius:2px; margin-bottom:20px; overflow:hidden; }
   .list-progress-fill { height:100%; background:var(--sage); border-radius:2px; transition:width 0.3s; }
+  .list-new-form { display:flex; gap:10px; margin-bottom:20px; align-items:center; background:var(--paper); border:1px solid rgba(26,20,16,0.1); border-radius:14px; padding:14px 16px; box-shadow:0 2px 12px var(--shadow); }
+  .list-new-form input { flex:1; padding:10px 14px; border:1.5px solid rgba(26,20,16,0.12); border-radius:8px; font-family:'DM Sans',sans-serif; font-size:14px; color:var(--ink); background:white; outline:none; transition:border-color 0.2s; }
+  .list-new-form input:focus { border-color:var(--rust); box-shadow:0 0 0 3px rgba(196,87,42,0.1); }
+  .list-photo-btn { padding:10px 12px; background:rgba(196,87,42,0.1); color:var(--rust); border:1.5px solid rgba(196,87,42,0.3); border-radius:8px; font-size:16px; cursor:pointer; transition:all 0.2s; flex-shrink:0; }
+  .list-photo-btn:hover { background:var(--rust); color:white; border-color:var(--rust); }
+  body.dark .list-new-form { background:#1a1814; border-color:rgba(255,255,255,0.08); }
+  body.dark .list-new-form input { background:#2a2520; color:var(--ink); border-color:rgba(255,255,255,0.1); }
+
   .list-scan-btn { padding:10px 12px; background:rgba(196,87,42,0.1); color:var(--rust); border:1.5px solid rgba(196,87,42,0.3); border-radius:8px; font-size:16px; cursor:pointer; transition:all 0.2s; flex-shrink:0; }
   .list-scan-btn:hover { background:var(--rust); color:white; border-color:var(--rust); }
   body.dark .list-add-row input { background:#2a2520; color:var(--ink); border-color:rgba(255,255,255,0.1); }
@@ -376,6 +384,11 @@
     <div id="view-listas" style="display:none">
       <div id="lists-index">
         <div class="section-title">Mis listas <span class="count-badge" id="lists-badge">0</span></div>
+        <div class="list-new-form">
+          <input type="text" id="new-list-name" placeholder="Nombre de la nueva lista…" onkeydown="if(event.key==='Enter') createList()">
+          <button class="list-photo-btn" onclick="createListWithPhoto()" title="Crear lista y escanear foto">📷</button>
+          <button class="list-add-btn" onclick="createList()">Crear</button>
+        </div>
         <div class="lists-grid" id="lists-grid"></div>
       </div>
       <div id="list-detail" style="display:none">
@@ -731,18 +744,23 @@ async function loadLists(){
 }
 
 async function createList(){
-  const name=prompt('Nombre de la lista:');
-  if(!name||!name.trim())return;
-  const{data,error}=await sb.from('lists').insert([{user_id:currentUser.id,name:name.trim()}]).select().single();
-  if(!error){lists.push(data);renderLists();toast('✓ Lista creada');
-    if(confirm('¿Quieres añadir elementos escaneando una foto o imagen?')){
-      openList(data.id,data.name);
-      setTimeout(()=>triggerPhotoScan(),300);
-    }
-  }
+  const name=document.getElementById('new-list-name').value.trim();
+  if(!name){toast('Escribe el nombre de la lista');return;}
+  const{data,error}=await sb.from('lists').insert([{user_id:currentUser.id,name}]).select().single();
+  if(!error){lists.push(data);renderLists();document.getElementById('new-list-name').value='';toast('✓ Lista creada');}
 }
 
-function triggerPhotoScan(){
+async function createListWithPhoto(){
+  const name=document.getElementById('new-list-name').value.trim();
+  if(!name){toast('Escribe primero el nombre de la lista');return;}
+  const{data,error}=await sb.from('lists').insert([{user_id:currentUser.id,name}]).select().single();
+  if(!error){
+    lists.push(data);renderLists();
+    document.getElementById('new-list-name').value='';
+    await openList(data.id,data.name);
+    triggerPhotoScan();
+  }
+}
   const input=document.createElement('input');
   input.type='file';
   input.accept='image/*';
@@ -792,13 +810,13 @@ async function deleteList(id,e){
 function renderLists(){
   document.getElementById('lists-badge').textContent=lists.length;
   const grid=document.getElementById('lists-grid');
+  if(!lists.length){grid.innerHTML=`<div class="empty-state"><div class="icon">📋</div><div>No tienes listas todavía.<br>¡Crea tu primera lista!</div></div>`;return;}
   grid.innerHTML=lists.map(l=>`
     <div class="list-card" onclick="openList('${l.id}','${escHtml(l.name)}')">
       <button class="list-card-delete" onclick="deleteList('${l.id}',event)">×</button>
       <div class="list-card-name">${escHtml(l.name)}</div>
       <div class="list-card-count">Toca para abrir</div>
-    </div>`).join('') +
-    `<div class="list-new-card" onclick="createList()">＋ Nueva lista</div>`;
+    </div>`).join('');
 }
 
 async function openList(id,name){
