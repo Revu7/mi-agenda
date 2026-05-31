@@ -761,6 +761,8 @@ async function createListWithPhoto(){
     triggerPhotoScan();
   }
 }
+
+function triggerPhotoScan(){
   const input=document.createElement('input');
   input.type='file';
   input.accept='image/*';
